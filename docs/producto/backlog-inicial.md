@@ -1,8 +1,28 @@
 # Backlog inicial
 
-Estructura de Epics e historias para cargar en Jira. Los Epics siguen las
-fases del [roadmap](roadmap-fases.md). Solo la Fase 0 está detallada: el
-resto son Epics contenedores, a detallar cuando se diseñe cada fase.
+Estructura de Epics e historias, cargada en Jira en el proyecto `CD`
+([ciudad-digital](https://rickymarino.atlassian.net/browse/CD-1)). Los
+Epics siguen las fases del [roadmap](roadmap-fases.md). Solo la Fase 0
+está detallada: el resto son Epics contenedores, a detallar cuando se
+diseñe cada fase.
+
+## Mapeo a Jira
+
+| Ticket | Trabajo |
+| --- | --- |
+| CD-1 | Epic Fase 0 — Fundación de plataforma |
+| CD-2 | Epic Fase 1 — MVP vendible / módulos ancla |
+| CD-3 | Epic Fase 2 — Recaudación e integración |
+| CD-4 | Epic Fase 3 — Compras y áreas normativamente pesadas |
+| CD-5 | Epic Fase 4 — Gestión territorial |
+| CD-6 | Epic Fase 5 — Áreas sociales |
+| CD-7 | Epic Fase 6 — Áreas de imagen y control de gestión |
+| CD-8 | Epic Fase 7 — Inteligencia artificial |
+| CD-9 | R1 · Dos municipios, dos marcas — **terminada** |
+| CD-10 | R2 · Un municipio se da de alta desde cero |
+| CD-11 | R3 · Un usuario entra a su municipio |
+| CD-12 | R4 · Un módulo se prende y se apaga |
+| CD-13 | R5 · Algo pasa y queda registrado |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
