@@ -7,9 +7,11 @@ integrarse con sistemas que cada municipio ya tenga digitalizados.
 
 ## Estado del proyecto
 
-En etapa de **definición de producto y arquitectura**. Todavía no hay código:
-el repositorio contiene la documentación de producto y las decisiones de
-arquitectura que se van tomando antes de empezar a implementar.
+En **Fase 0** (fundación de plataforma). Está terminada la rebanada **R1 ·
+Dos municipios, dos marcas**: una única build sirve portales con la
+identidad visual de cada municipio, resuelto por subdominio.
+
+Para levantarlo, ver [entorno de desarrollo](docs/desarrollo.md).
 
 ## Para quién es
 
@@ -36,6 +38,7 @@ sin depender de un desarrollo a medida por municipio.
 - [Roadmap por fases](docs/producto/roadmap-fases.md)
 - [Modelo comercial](docs/producto/modelo-comercial.md)
 - [Backlog inicial](docs/producto/backlog-inicial.md)
+- [Entorno de desarrollo](docs/desarrollo.md)
 - [Diseño técnico de Fase 0](docs/arquitectura/diseno-fase-0.md)
 - [Decisiones de arquitectura (ADRs)](docs/arquitectura/decisiones/)
 

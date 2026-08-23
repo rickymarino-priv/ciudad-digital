@@ -1,0 +1,161 @@
+/*
+ * Tokens de diseño.
+ *
+ * Los valores de :root son solo el fallback neutro con el que se pinta la
+ * página antes de que llegue el tema del municipio; el backend los pisa en
+ * runtime con la marca del tenant (ADR 0006). Ningún color se escribe
+ * literal fuera de este bloque: todo lo demás usa var(--…), que es lo que
+ * hace que una sola build sirva a todos los municipios.
+ */
+:root {
+  --color-primario: #33383f;
+  --color-primario-contraste: #ffffff;
+  --color-acento: #5a5f66;
+  --color-fondo: #f5f6f7;
+  --color-superficie: #ffffff;
+  --color-texto: #1a1d21;
+  --color-texto-tenue: #4a4f57;
+  --tipografia: system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --ancho-maximo: 60rem;
+  --radio: 0.5rem;
+  --espacio: 1rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-fondo);
+  color: var(--color-texto);
+  font-family: var(--tipografia);
+  line-height: 1.6;
+}
+
+/*
+ * Foco siempre visible y con buen contraste: es la única forma de navegar
+ * para quien usa teclado. Nunca se hace outline: none sin reemplazo.
+ */
+:focus-visible {
+  outline: 3px solid var(--color-acento);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Primer tabulador de la página: permite saltear el encabezado. */
+.salto-al-contenido {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 10;
+  padding: 0.75rem 1rem;
+  background-color: var(--color-superficie);
+  color: var(--color-texto);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.salto-al-contenido:focus {
+  left: 0;
+}
+
+.encabezado {
+  background-color: var(--color-primario);
+  color: var(--color-primario-contraste);
+  padding: calc(var(--espacio) * 1.25) var(--espacio);
+}
+
+.encabezado__marca {
+  display: flex;
+  align-items: center;
+  gap: var(--espacio);
+  max-width: var(--ancho-maximo);
+  margin: 0 auto;
+}
+
+.encabezado__logo {
+  width: 3.5rem;
+  height: 3.5rem;
+  flex-shrink: 0;
+}
+
+.encabezado__sobretitulo {
+  margin: 0;
+  font-size: 0.875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.encabezado__nombre {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.contenido {
+  max-width: var(--ancho-maximo);
+  margin: 0 auto;
+  padding: calc(var(--espacio) * 2) var(--espacio);
+}
+
+.contenido h1 {
+  color: var(--color-primario);
+  margin-top: 0;
+}
+
+.contenido__bajada {
+  color: var(--color-texto-tenue);
+  font-size: 1.125rem;
+  max-width: 45ch;
+}
+
+.ficha {
+  margin: 0;
+  background-color: var(--color-superficie);
+  border-radius: var(--radio);
+  border: 1px solid color-mix(in srgb, var(--color-texto) 12%, transparent);
+  overflow: hidden;
+}
+
+.ficha__fila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem var(--espacio);
+  padding: 0.75rem var(--espacio);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-texto) 8%, transparent);
+}
+
+.ficha__fila:last-child {
+  border-bottom: none;
+}
+
+.ficha dt {
+  font-weight: 600;
+  min-width: 10rem;
+  color: var(--color-texto-tenue);
+}
+
+.ficha dd {
+  margin: 0;
+}
+
+.pie {
+  max-width: var(--ancho-maximo);
+  margin: 0 auto;
+  padding: var(--espacio);
+  color: var(--color-texto-tenue);
+  font-size: 0.875rem;
+  border-top: 1px solid color-mix(in srgb, var(--color-texto) 12%, transparent);
+}
+
+.centrado {
+  max-width: var(--ancho-maximo);
+  margin: 0 auto;
+  padding: calc(var(--espacio) * 3) var(--espacio);
+}
