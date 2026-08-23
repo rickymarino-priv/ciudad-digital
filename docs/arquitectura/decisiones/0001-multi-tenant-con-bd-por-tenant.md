@@ -54,5 +54,6 @@ datos de un municipio no conviven en la misma base que los de otro.
 - Estrategia de theming del frontend (tokens dinámicos vs. build por
   tenant) — propuesta preliminar: tokens dinámicos cargados en runtime
   desde la configuración del tenant, pendiente de confirmación.
-- Arquitectura del backend (monolito modular vs. microservicios) — todavía
-  no es una decisión formal, solo una recomendación en discusión.
+
+La arquitectura del backend quedó resuelta en
+[ADR 0003](0003-spring-modulith-para-el-backend.md) (Spring Modulith).
