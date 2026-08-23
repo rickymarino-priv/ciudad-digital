@@ -34,6 +34,7 @@ sin depender de un desarrollo a medida por municipio.
 - [Visión y alcance del producto](docs/producto/vision-y-alcance.md)
 - [Catálogo funcional](docs/producto/catalogo-funcional.md)
 - [Roadmap por fases](docs/producto/roadmap-fases.md)
+- [Modelo comercial](docs/producto/modelo-comercial.md)
 - [Diseño técnico de Fase 0](docs/arquitectura/diseno-fase-0.md)
 - [Decisiones de arquitectura (ADRs)](docs/arquitectura/decisiones/)
 
@@ -42,8 +43,7 @@ sin depender de un desarrollo a medida por municipio.
 - Backend: Java con [Spring Modulith](https://spring.io/projects/spring-modulith)
   (monolito modular)
 - Persistencia: PostgreSQL, una base por tenant
-- Frontend: web (framework aún no definido), build única con theming
-  dinámico por tenant
+- Frontend: React, build única con theming dinámico por tenant
 
 El detalle está en el [diseño técnico de Fase 0](docs/arquitectura/diseno-fase-0.md)
 y en las [decisiones de arquitectura](docs/arquitectura/decisiones/), que se

@@ -12,6 +12,11 @@ Esto es un roadmap de producto, no un compromiso de fechas.
 No se vende sola; habilita todo lo demás.
 
 - Identidad y accesos + infraestructura multi-tenant
+- Administración de tenants: alta de municipio (creación de base,
+  migraciones, activación) — mecánica de aprovisionamiento, no capa
+  comercial
+- Modelo de contrato/entitlement + gating de módulos en backend (ver
+  [modelo comercial](modelo-comercial.md))
 - Motor de notificaciones multicanal
 - Motor de expediente/workflow configurable (base mínima)
 - Estándar de accesibilidad (WCAG) para el portal ciudadano
@@ -42,6 +47,8 @@ todavía.
 - Portal de proveedores (registro y documentación)
 - Capa de adaptadores a sistemas legados (AFIP/ARBA o equivalente
   provincial, pasarelas de pago)
+- Consola del proveedor: contratos, módulos por municipio, estado de
+  facturación (ver [modelo comercial](modelo-comercial.md))
 
 Acá es donde empieza a pesar la interoperabilidad con sistemas ya
 digitalizados de cada municipio — deliberadamente no se mezcla con el MVP
@@ -55,6 +62,8 @@ producto.
 - Tesorería
 - Legal y Técnica / Juzgado de Faltas
 - Tránsito y Transporte
+- Consola del municipio: módulos activos, facturas, solicitud de alta/baja
+  de módulos, administración de usuarios
 
 Son los módulos de mayor riesgo legal/normativo (cada provincia tiene su
 propio régimen); conviene abordarlos con 2-3 clientes reales dando feedback
@@ -106,3 +115,7 @@ Transversal sobre los módulos de las fases anteriores.
 - **Seguridad/Defensa Civil** y **Bromatología**: candidatos a Fase 4-5,
   dependiendo de la prioridad que les dé el municipio piloto que se
   consiga.
+- **Integración con facturación electrónica de ARCA (ex AFIP)**: diferida
+  sin fase asignada; la emisión de facturas se maneja fuera del sistema
+  hasta que el volumen de clientes la justifique (ver
+  [modelo comercial](modelo-comercial.md)).

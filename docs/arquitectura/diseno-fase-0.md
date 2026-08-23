@@ -58,7 +58,27 @@ subdominio, con la configuración de tema almacenada en la base de control
 branding correcto en el MVP; inyección server-side queda como mejora
 futura, condicionada a una decisión de framework/SSR todavía no tomada.
 
-## 5. Modelo de datos del tenant
+## 5. Frontend
+
+**React** ([ADR 0008](decisiones/0008-react-como-framework-de-frontend.md)),
+elegido por la experiencia previa del equipo. Requiere apoyarse en una
+librería de componentes accesibles headless para cumplir WCAG sin construir
+todo desde cero, y definir explícitamente convenciones de organización del
+código (React no las impone y el roadmap prevé 30+ módulos).
+
+## 6. Entitlement de módulos
+
+**Gating en backend** ([ADR 0009](decisiones/0009-modelo-comercial-y-entitlement.md)):
+un interceptor rechaza requests a módulos que el tenant no tiene
+contratados; el frontend además los oculta, pero eso es UX, no enforcement.
+El módulo de Spring Modulith es la unidad de gating, y coincide con la
+unidad comercial del [modelo comercial](../producto/modelo-comercial.md).
+
+El entitlement está desacoplado del estado de pago: un módulo se apaga por
+fin de contrato (decisión manual), nunca automáticamente por una factura
+atrasada.
+
+## 7. Modelo de datos del tenant
 
 Modelo híbrido en la base de control
 ([ADR 0007](decisiones/0007-modelo-de-datos-del-tenant.md)): columnas
@@ -77,6 +97,11 @@ tenant: se arman combinando credenciales compartidas de aplicación con
   futuro, no se implementa en Fase 0).
 - Aprovisionamiento de instancia dedicada por tenant (caso excepcional, se
   resuelve puntualmente si aparece, no como flujo general).
-- Selección de framework de frontend (React/Angular/Vue u otro): no se
-  discutió en este diseño, es un punto abierto todavía.
+- Consolas comerciales (del proveedor y del municipio): diferidas a Fases
+  2 y 3 respectivamente. No confundir con el módulo de administración de
+  tenants, que sí es Fase 0 — ver
+  [modelo comercial](../producto/modelo-comercial.md).
+- Integración con facturación electrónica de ARCA.
+- Librería de componentes accesibles, manejo de estado y convenciones de
+  organización del frontend ([ADR 0008](decisiones/0008-react-como-framework-de-frontend.md)).
 - Todo lo relacionado a IA ([ADR 0002](decisiones/0002-ia-diferida-a-fase-posterior.md)).
