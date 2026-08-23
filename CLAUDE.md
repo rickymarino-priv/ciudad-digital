@@ -51,6 +51,34 @@ posteriores:
 - Optimización de performance sin problema medido.
 - Refactors de calidad que no bloquean la rebanada siguiente.
 
+## Flujo de trabajo con git
+
+- `main` es **producción**. No se trabaja ni se commitea directamente
+  sobre `main`.
+- `develop` es la rama de integración: es de donde sale y a donde vuelve
+  todo el trabajo.
+- Cada ticket de Jira se resuelve en su **propia rama**, creada siempre a
+  partir de lo último que tenga `develop` (no de otra rama de trabajo ni
+  de `main`).
+- El nombre de la rama referencia al ticket: clave de Jira más una
+  descripción corta en kebab-case. Por ejemplo:
+  `CD-12-alta-de-municipio-desde-cero`.
+- El push va sobre esa rama, y de ahí sale un **PR contra `develop`**.
+  Nunca se pushea a `develop` directamente.
+- El merge del PR lo hace **una persona**, no el agente. Una vez mergeado,
+  la rama temporal se puede borrar local y remotamente.
+
+### Qué unidad de trabajo mapea a una rama
+
+La rama es la **rebanada**, no la pieza técnica. Una rama por componente
+horizontal reintroduciría, disfrazados de PR, los tickets sueltos que la
+regla de arriba evita: el PR tiene que ser algo que se pueda ver
+funcionando.
+
+Si una rebanada da un PR demasiado grande para revisar, se parte en ramas
+apiladas sobre la rama de la rebanada, y la rebanada entra a `develop`
+como un único PR.
+
 ## Contexto del proyecto
 
 - Producto multi-tenant para municipios argentinos. Ver
