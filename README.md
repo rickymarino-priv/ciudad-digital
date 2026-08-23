@@ -35,6 +35,7 @@ sin depender de un desarrollo a medida por municipio.
 - [Catálogo funcional](docs/producto/catalogo-funcional.md)
 - [Roadmap por fases](docs/producto/roadmap-fases.md)
 - [Modelo comercial](docs/producto/modelo-comercial.md)
+- [Backlog inicial](docs/producto/backlog-inicial.md)
 - [Diseño técnico de Fase 0](docs/arquitectura/diseno-fase-0.md)
 - [Decisiones de arquitectura (ADRs)](docs/arquitectura/decisiones/)
 
