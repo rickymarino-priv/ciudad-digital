@@ -1,9 +1,18 @@
 # Backlog inicial
 
 Estructura de Epics e historias para cargar en Jira. Los Epics siguen las
-fases del [roadmap](roadmap-fases.md). Solo la Fase 0 tiene historias
-detalladas: el resto son Epics contenedores, a detallar cuando se diseñe
-cada fase.
+fases del [roadmap](roadmap-fases.md). Solo la Fase 0 está detallada: el
+resto son Epics contenedores, a detallar cuando se diseñe cada fase.
+
+La Fase 0 está organizada en **rebanadas verticales demostrables**, según
+la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
+atraviesa todas las capas necesarias y termina en algo que se puede ver
+funcionando. Las piezas técnicas figuran dentro de cada rebanada, no como
+tickets propios.
+
+Recordatorio de lo que **viaja dentro** de cada rebanada y no se difiere:
+tests de aislamiento entre tenants (si toca datos) y accesibilidad WCAG
+(si agrega pantallas).
 
 ---
 
@@ -13,86 +22,86 @@ Base técnica multi-tenant sobre la que se construyen todos los módulos
 funcionales. No es vendible por sí sola. Diseño técnico completo en
 [diseño de Fase 0](../arquitectura/diseno-fase-0.md).
 
-### Historias
+### R1 · Dos municipios, dos marcas
 
-**F0-1 · Esqueleto del proyecto backend con Spring Modulith**
-Proyecto Java con Spring Boot y Spring Modulith configurado, incluyendo el
-test de verificación de límites entre módulos (`ApplicationModules.verify()`)
-corriendo en el build. Referencia:
-[ADR 0003](../arquitectura/decisiones/0003-spring-modulith-para-el-backend.md).
+**Demo**: entrar a `sanmartin.localhost` y a `moron.localhost` y ver el
+mismo portal con logo, colores y nombre distintos en cada uno.
 
-**F0-2 · Base de control y modelo de datos del tenant**
-Esquema de la base de control con la tabla de tenants: columnas explícitas
-(`id`, `slug`, `nombre_municipio`, `subdominio`, `dominio_personalizado`,
-`estado`, `nombre_base_datos`, `fecha_alta`) y columna `config` JSON (tema,
-módulos habilitados). Migraciones Flyway de la base de control. Referencia:
-[ADR 0007](../arquitectura/decisiones/0007-modelo-de-datos-del-tenant.md).
+Incluye:
+- Proyecto backend con Spring Boot + Spring Modulith, con verificación de
+  límites entre módulos corriendo en el build
+  ([ADR 0003](../arquitectura/decisiones/0003-spring-modulith-para-el-backend.md)).
+- Base de control con la tabla de tenants y sus migraciones
+  ([ADR 0007](../arquitectura/decisiones/0007-modelo-de-datos-del-tenant.md)).
+- Resolución de tenant por header `Host`, con manejo de tenant inexistente
+  o inactivo
+  ([ADR 0004](../arquitectura/decisiones/0004-resolucion-de-tenant-por-subdominio.md)).
+- Endpoint que sirve el tema del tenant resuelto.
+- Proyecto frontend React con convenciones de organización definidas y
+  librería de componentes accesibles elegida
+  ([ADR 0008](../arquitectura/decisiones/0008-react-como-framework-de-frontend.md)).
+- Aplicación de tokens de tema en runtime
+  ([ADR 0006](../arquitectura/decisiones/0006-theming-dinamico-por-tokens.md)).
+- Tenants sembrados por migración (todavía sin alta automatizada).
 
-**F0-3 · Resolución de tenant por subdominio**
-Filtro/interceptor que resuelve el tenant a partir del header `Host`,
-consulta la base de control y deja el tenant disponible para el resto del
-request. Manejo del caso "tenant inexistente o inactivo". Referencia:
-[ADR 0004](../arquitectura/decisiones/0004-resolucion-de-tenant-por-subdominio.md).
+### R2 · Un municipio se da de alta desde cero
 
-**F0-4 · Routing dinámico de datasource por tenant**
-Datasource que enruta a la base del tenant resuelto, armando la conexión
-con credenciales compartidas de aplicación + `nombre_base_datos`. Incluye
-la estrategia de pooling y su límite de pools activos. Referencia:
-[ADR 0001](../arquitectura/decisiones/0001-multi-tenant-con-bd-por-tenant.md).
+**Demo**: dar de alta un municipio nuevo por API, y verlo funcionando en
+su subdominio con datos guardados en **su propia** base.
 
-**F0-5 · Migraciones de esquema por tenant**
-Ejecución de migraciones Flyway contra las N bases de tenants, con reporte
-de estado por tenant (no asumir migración atómica de todos). Referencia:
-[ADR 0001](../arquitectura/decisiones/0001-multi-tenant-con-bd-por-tenant.md).
+Incluye:
+- Módulo de administración de tenants con el proceso de alta y sus
+  estados: `pendiente → aprovisionando → activo → error`
+  ([ADR 0005](../arquitectura/decisiones/0005-aprovisionamiento-de-tenant.md)).
+- Creación de la base física del tenant, migraciones y seed inicial.
+- Routing dinámico de datasource por tenant resuelto, con estrategia de
+  pooling
+  ([ADR 0001](../arquitectura/decisiones/0001-multi-tenant-con-bd-por-tenant.md)).
+- Ejecución de migraciones contra las N bases con reporte de estado por
+  tenant.
+- **Test de aislamiento**: datos escritos en un tenant no son visibles
+  desde otro.
 
-**F0-6 · Módulo de administración de tenants: alta de municipio**
-Proceso de aprovisionamiento con estado explícito (`pendiente →
-aprovisionando → activo → error`): crear base física, correr migraciones,
-sembrar tema default y usuario admin, activar en la base de control.
-Referencia:
-[ADR 0005](../arquitectura/decisiones/0005-aprovisionamiento-de-tenant.md).
-*Nota: es la mecánica de aprovisionamiento, no la consola comercial (Fase 2).*
+### R3 · Un usuario entra a su municipio
 
-**F0-7 · Identidad y accesos**
-Autenticación y modelo de roles/permisos granulares por área y módulo,
-scopeado por tenant.
+**Demo**: iniciar sesión en dos municipios distintos con usuarios
+distintos, y verificar que un usuario de un municipio no puede acceder al
+otro.
 
-**F0-8 · Entitlement de módulos con gating en backend**
-Interceptor que rechaza requests a módulos no contratados por el tenant,
-leyendo `config.modulos_habilitados`. Desacoplado del estado de pago.
-Referencia:
-[ADR 0009](../arquitectura/decisiones/0009-modelo-comercial-y-entitlement.md).
+Incluye:
+- Autenticación y sesión scopeada por tenant.
+- Modelo de roles y permisos granulares por área y módulo.
+- Pantalla de login accesible.
+- **Test de aislamiento**: credenciales de un tenant no sirven en otro.
 
-**F0-9 · Esqueleto del frontend React**
-Proyecto React con convenciones de organización por módulo definidas,
-librería de componentes accesibles headless elegida, routing y manejo de
-estado. Referencia:
-[ADR 0008](../arquitectura/decisiones/0008-react-como-framework-de-frontend.md).
+### R4 · Un módulo se prende y se apaga
 
-**F0-10 · Theming dinámico por tokens**
-Endpoint que sirve el tema del tenant desde la base de control, y
-aplicación de tokens (CSS custom properties) en el frontend al arrancar.
-Referencia:
-[ADR 0006](../arquitectura/decisiones/0006-theming-dinamico-por-tokens.md).
+**Demo**: activar y desactivar un módulo para un municipio y ver que
+desaparece de la navegación y que la API lo rechaza.
 
-**F0-11 · Estándar de accesibilidad WCAG**
-Definición del nivel objetivo de conformidad, checklist para componentes y
-verificación automatizada en el pipeline.
+Incluye:
+- Entitlement leído de `config.modulos_habilitados`.
+- Interceptor de gating en backend que rechaza requests a módulos no
+  contratados
+  ([ADR 0009](../arquitectura/decisiones/0009-modelo-comercial-y-entitlement.md)).
+- Navegación del frontend construida a partir de los módulos habilitados.
 
-**F0-12 · Motor de notificaciones multicanal**
-Servicio transversal de notificaciones (email como mínimo en Fase 0; SMS,
-WhatsApp y push como canales incorporables después).
+### R5 · Algo pasa y queda registrado
 
-**F0-13 · Motor de expediente/workflow configurable (base mínima)**
-Núcleo del expediente electrónico y workflow por circuito, sobre el que se
-apoyan los módulos funcionales de fases siguientes.
+**Demo**: ejecutar una acción en el sistema, recibir la notificación por
+email y ver el registro de auditoría correspondiente.
 
-**F0-14 · Framework de reportes/BI**
-Motor de reportes reutilizable, sin los tableros concretos de cada área.
+Incluye:
+- Motor de notificaciones multicanal, con email como primer canal.
+- Auditoría transversal: quién hizo qué, cuándo y sobre qué.
 
-**F0-15 · Auditoría y trazabilidad transversal**
-Registro de quién hizo qué, cuándo y sobre qué expediente. Requisito casi
-obligatorio en sector público.
+### Movido a Fase 1
+
+El **motor de expediente/workflow configurable** y el **framework de
+reportes/BI** salen de la Fase 0: no tienen consumidor todavía y no se
+pueden construir como rebanada demostrable. Construirlos sin un módulo
+real que los use es diseñar a ciegas. Se construyen en Fase 1, junto con
+el primer módulo funcional que efectivamente los necesita.
 
 ---
 
@@ -102,6 +111,9 @@ Reclamos ciudadanos (311), Mesa de Entradas + subset de Trámites a
 Distancia, Boletín Oficial digital, Transparencia activa básica,
 Cementerio. Bajo acoplamiento con sistemas legados: no depende de la capa
 de adaptadores.
+
+Incluye además el motor de expediente/workflow y el framework de
+reportes/BI, construidos junto al primer módulo que los consume.
 
 ## Epic: Fase 2 — Recaudación e integración
 
