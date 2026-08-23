@@ -1,21 +1,31 @@
 package ar.com.ciudaddigital.tenants.internal;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.repository.Repository;
 
 /**
- * Lectura de la base de control.
+ * Acceso a la base de control.
  *
- * <p>Extiende {@link Repository} y no {@code JpaRepository} a propósito: en
- * R1 los tenants se siembran por migración y nada debería poder escribirlos.
- * Las operaciones de alta llegan en R2, con el módulo de aprovisionamiento.
+ * <p>Extiende {@link Repository} y no {@code JpaRepository} para exponer
+ * solo lo que el módulo necesita: no hay borrado de municipios, que sería
+ * una operación destructiva sin caso de uso todavía.
  */
-interface TenantRepository extends Repository<TenantEntity, java.util.UUID> {
+interface TenantRepository extends Repository<TenantEntity, UUID> {
 
-    Optional<TenantEntity> findById(java.util.UUID id);
+    TenantEntity save(TenantEntity tenant);
+
+    Optional<TenantEntity> findById(UUID id);
+
+    List<TenantEntity> findAllByOrderBySlugAsc();
 
     Optional<TenantEntity> findByDominioPersonalizadoIgnoreCase(String dominioPersonalizado);
 
     Optional<TenantEntity> findBySubdominioIgnoreCase(String subdominio);
+
+    boolean existsBySlugIgnoreCase(String slug);
+
+    boolean existsBySubdominioIgnoreCase(String subdominio);
 }

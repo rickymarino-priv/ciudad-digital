@@ -1,7 +1,9 @@
+import { useContacto } from './municipio/useContacto'
 import { useTenant } from './tenant/useTenant'
 
 export default function App() {
   const estado = useTenant()
+  const contacto = useContacto()
 
   if (estado.estado === 'cargando') {
     return (
@@ -68,19 +70,51 @@ export default function App() {
               </dd>
             </div>
             <div className="ficha__fila">
-              <dt>Dirección</dt>
+              <dt>Portal</dt>
               <dd>
                 <code>{window.location.host}</code>
               </dd>
             </div>
           </dl>
         </section>
+
+        {contacto.estado === 'listo' && (
+          <section aria-labelledby="titulo-contacto">
+            <h2 id="titulo-contacto">Contacto</h2>
+            <p className="contenido__nota">
+              Estos datos se leen de la base de datos propia del municipio,
+              separada de la de cualquier otro.
+            </p>
+            <dl className="ficha">
+              <div className="ficha__fila">
+                <dt>Dirección</dt>
+                <dd>{contacto.contacto.direccion}</dd>
+              </div>
+              <div className="ficha__fila">
+                <dt>Teléfono</dt>
+                <dd>
+                  <a href={`tel:${contacto.contacto.telefono}`}>
+                    {contacto.contacto.telefono}
+                  </a>
+                </dd>
+              </div>
+              <div className="ficha__fila">
+                <dt>Correo electrónico</dt>
+                <dd>
+                  <a href={`mailto:${contacto.contacto.email}`}>
+                    {contacto.contacto.email}
+                  </a>
+                </dd>
+              </div>
+            </dl>
+          </section>
+        )}
       </main>
 
       <footer className="pie">
         <p>
-          Ciudad Digital — plataforma de gestión municipal. Rebanada R1: dos
-          municipios, dos marcas.
+          Ciudad Digital — plataforma de gestión municipal. Rebanada R2: alta
+          de municipio con base propia.
         </p>
       </footer>
     </>

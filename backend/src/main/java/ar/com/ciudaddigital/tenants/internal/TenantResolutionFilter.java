@@ -36,7 +36,10 @@ class TenantResolutionFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith(PREFIJO_API);
+        String ruta = request.getRequestURI();
+        // La API de administración es cross-tenant por definición: opera
+        // sobre todos los municipios, así que no se resuelve ninguno.
+        return !ruta.startsWith(PREFIJO_API) || ruta.startsWith(AdminTokenFilter.PREFIJO_ADMIN);
     }
 
     @Override

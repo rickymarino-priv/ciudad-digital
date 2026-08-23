@@ -115,6 +115,16 @@ body {
   max-width: 45ch;
 }
 
+.contenido__nota {
+  color: var(--color-texto-tenue);
+  font-size: 0.9375rem;
+  max-width: 55ch;
+}
+
+.contenido a {
+  color: var(--color-primario);
+}
+
 .ficha {
   margin: 0;
   background-color: var(--color-superficie);

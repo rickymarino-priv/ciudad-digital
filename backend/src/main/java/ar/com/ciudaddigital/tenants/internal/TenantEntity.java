@@ -54,6 +54,30 @@ class TenantEntity {
         // Requerido por JPA.
     }
 
+    /**
+     * Municipio recién solicitado, todavía sin base propia.
+     *
+     * <p>Nace {@link EstadoTenant#PENDIENTE}: no atiende requests hasta que
+     * el aprovisionamiento termine bien.
+     */
+    static TenantEntity nueva(String slug, String nombreMunicipio, String subdominio,
+            String nombreBaseDatos, TenantConfig config) {
+        TenantEntity tenant = new TenantEntity();
+        tenant.id = UUID.randomUUID();
+        tenant.slug = slug;
+        tenant.nombreMunicipio = nombreMunicipio;
+        tenant.subdominio = subdominio;
+        tenant.nombreBaseDatos = nombreBaseDatos;
+        tenant.estado = EstadoTenant.PENDIENTE;
+        tenant.fechaAlta = OffsetDateTime.now();
+        tenant.config = config;
+        return tenant;
+    }
+
+    void cambiarEstado(EstadoTenant nuevo) {
+        this.estado = nuevo;
+    }
+
     TenantInfo aTenantInfo() {
         return new TenantInfo(id, slug, nombreMunicipio, nombreBaseDatos);
     }

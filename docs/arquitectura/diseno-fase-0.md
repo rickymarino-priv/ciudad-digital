@@ -31,6 +31,17 @@ un módulo puntual (candidato: motor de IA de Fase 7) el día que haga falta.
 - Un filtro/interceptor temprano en el backend resuelve el tenant a partir
   del header `Host` en cada request, consultando la base de control.
 
+### Unidades de persistencia
+
+La base de control y las bases de municipio tienen esquemas distintos, así
+que cada una necesita su propio `EntityManagerFactory`. El reparto es por
+paquete: las entidades bajo `tenants` van a la base de control y las que
+están bajo `municipio` a la base del tenant en curso.
+
+El datasource de tenants resuelve la base a partir del municipio del
+request y **falla si no hay ninguno resuelto**: un valor por defecto
+significaría escribir los datos de un municipio en la base de otro.
+
 ## 3. Aprovisionamiento de tenant
 
 **Módulo interno de administración de tenants**
