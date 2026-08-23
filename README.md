@@ -7,9 +7,13 @@ integrarse con sistemas que cada municipio ya tenga digitalizados.
 
 ## Estado del proyecto
 
-En **Fase 0** (fundación de plataforma). Está terminada la rebanada **R1 ·
-Dos municipios, dos marcas**: una única build sirve portales con la
-identidad visual de cada municipio, resuelto por subdominio.
+En **Fase 0** (fundación de plataforma). Terminadas:
+
+- **R1 · Dos municipios, dos marcas**: una única build sirve portales con
+  la identidad visual de cada municipio, resuelto por subdominio.
+- **R2 · Un municipio se da de alta desde cero**: el alta por API crea la
+  base de datos propia del municipio, la migra y la siembra; sus datos no
+  conviven con los de ningún otro.
 
 Para levantarlo, ver [entorno de desarrollo](docs/desarrollo.md).
 
