@@ -14,6 +14,12 @@ En **Fase 0** (fundación de plataforma). Terminadas:
 - **R2 · Un municipio se da de alta desde cero**: el alta por API crea la
   base de datos propia del municipio, la migra y la siembra; sus datos no
   conviven con los de ningún otro.
+- **R3 · Un usuario entra a su municipio**: sesión atada al municipio en el
+  que se abrió, con roles y permisos granulares administrables desde el
+  portal.
+- **R4 · Un módulo se prende y se apaga**: cada municipio tiene contratado
+  un subconjunto de módulos; el backend rechaza los requests a los que no
+  contrató y la navegación del portal se arma con los que sí.
 
 Para levantarlo, ver [entorno de desarrollo](docs/desarrollo.md).
 

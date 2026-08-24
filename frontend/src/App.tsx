@@ -1,16 +1,44 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Login } from './acceso/Login'
 import { PanelDeAdministracion } from './acceso/PanelDeAdministracion'
 import { useSesion } from './acceso/useSesion'
+import { CatalogoDeModulos } from './modulos/CatalogoDeModulos'
+import { Navegacion } from './modulos/Navegacion'
+import { registroDePantallasDeModulo } from './modulos/registro'
+import { useModulos } from './modulos/useModulos'
 import { useContacto } from './municipio/useContacto'
 import { useTenant } from './tenant/useTenant'
+import type { Vista } from './vista'
 
 export default function App() {
   const estado = useTenant()
   const contacto = useContacto()
   const sesion = useSesion()
-  const [vista, setVista] = useState<'portal' | 'ingreso' | 'administracion'>('portal')
+  const modulos = useModulos()
+  const [vista, setVista] = useState<Vista>({ tipo: 'portal' })
+
+  // El título del portal recibe el foco al volver a él desde otra vista,
+  // pero no en la primera carga: sin el chequeo contra la vista anterior,
+  // la página robaría el foco apenas termina de montar.
+  const tituloPortal = useRef<HTMLHeadingElement>(null)
+  const vistaAnterior = useRef<Vista['tipo']>(vista.tipo)
+
+  useEffect(() => {
+    if (vista.tipo === 'portal' && vistaAnterior.current !== 'portal') {
+      tituloPortal.current?.focus()
+    }
+    vistaAnterior.current = vista.tipo
+  }, [vista])
+
+  // Si se navegó a un módulo cuyo código no tiene pantalla registrada (por
+  // ejemplo, uno que se apagó y ya no está en el catálogo), no hay nada
+  // roto que mostrar: se vuelve al portal.
+  useEffect(() => {
+    if (vista.tipo === 'modulo' && !(vista.codigo in registroDePantallasDeModulo)) {
+      setVista({ tipo: 'portal' })
+    }
+  }, [vista])
 
   const usuario = sesion.estado.estado === 'autenticado' ? sesion.estado.usuario : null
 
@@ -19,14 +47,14 @@ export default function App() {
   // pantalla tiene que quedarse donde está para mostrar el error.
   async function iniciarYVolverAlPortal(email: string, password: string) {
     await sesion.iniciar(email, password)
-    setVista('portal')
+    setVista({ tipo: 'portal' })
   }
 
   // Si cierra sesión estando en la administración, no tiene sentido dejarlo
   // ahí: ya no hay usuario cuyo permiso justifique mostrarla.
   async function cerrarYVolverAlPortal() {
     await sesion.cerrar()
-    setVista('portal')
+    setVista({ tipo: 'portal' })
   }
 
   if (estado.estado === 'cargando') {
@@ -57,6 +85,17 @@ export default function App() {
     puede('usuarios.administrar') ||
     puede('roles.ver') ||
     puede('roles.administrar')
+
+  // Mientras el catálogo está cargando, la navegación arranca con la lista
+  // vacía (queda solo "Inicio" y, si corresponde, "Administración") en vez
+  // de mostrar un estado intermedio que después empuje los ítems.
+  const modulosParaNavegacion = modulos.estado === 'listo' ? modulos.modulos : []
+
+  const ComponenteDeModulo = vista.tipo === 'modulo' ? registroDePantallasDeModulo[vista.codigo] : undefined
+  const moduloActual =
+    vista.tipo === 'modulo' && modulos.estado === 'listo'
+      ? modulos.modulos.find((modulo) => modulo.codigo === vista.codigo)
+      : undefined
 
   return (
     <>
@@ -89,7 +128,7 @@ export default function App() {
                     <button
                       type="button"
                       className="boton boton--sobre-primario"
-                      onClick={() => setVista('administracion')}
+                      onClick={() => setVista({ tipo: 'administracion' })}
                     >
                       Administración
                     </button>
@@ -106,7 +145,7 @@ export default function App() {
                 <button
                   type="button"
                   className="boton boton--sobre-primario"
-                  onClick={() => setVista('ingreso')}
+                  onClick={() => setVista({ tipo: 'ingreso' })}
                 >
                   Iniciar sesión
                 </button>
@@ -114,19 +153,35 @@ export default function App() {
             </div>
           )}
         </div>
+
+        <Navegacion
+          modulos={modulosParaNavegacion}
+          vista={vista}
+          veAdministracion={veAdministracion}
+          onIrAPortal={() => setVista({ tipo: 'portal' })}
+          onIrAModulo={(codigo) => setVista({ tipo: 'modulo', codigo })}
+          onIrAAdministracion={() => setVista({ tipo: 'administracion' })}
+        />
       </header>
 
-      {vista === 'ingreso' ? (
+      {vista.tipo === 'ingreso' ? (
         <Login
           nombreMunicipio={tenant.nombreMunicipio}
           onIniciar={iniciarYVolverAlPortal}
-          onVolver={() => setVista('portal')}
+          onVolver={() => setVista({ tipo: 'portal' })}
         />
-      ) : vista === 'administracion' && usuario ? (
-        <PanelDeAdministracion usuario={usuario} onVolver={() => setVista('portal')} />
+      ) : vista.tipo === 'administracion' && usuario ? (
+        <PanelDeAdministracion usuario={usuario} onVolver={() => setVista({ tipo: 'portal' })} />
+      ) : vista.tipo === 'modulo' && ComponenteDeModulo ? (
+        <ComponenteDeModulo
+          modulo={moduloActual}
+          onVolver={() => setVista({ tipo: 'portal' })}
+        />
       ) : (
         <main id="contenido" className="contenido">
-          <h1>Portal de {tenant.nombreMunicipio}</h1>
+          <h1 ref={tituloPortal} tabIndex={-1}>
+            Portal de {tenant.nombreMunicipio}
+          </h1>
           <p className="contenido__bajada">
             Este es el portal digital del municipio. Los trámites, reclamos y
             servicios se van a ir incorporando por etapas.
@@ -151,6 +206,13 @@ export default function App() {
                 </div>
               </dl>
             </section>
+          )}
+
+          {usuario && (
+            <CatalogoDeModulos
+              estado={modulos}
+              onAbrirModulo={(codigo) => setVista({ tipo: 'modulo', codigo })}
+            />
           )}
 
           <section aria-labelledby="titulo-estado">
@@ -211,8 +273,8 @@ export default function App() {
 
       <footer className="pie">
         <p>
-          Ciudad Digital — plataforma de gestión municipal. Rebanada R3: un
-          usuario entra a su municipio.
+          Ciudad Digital — plataforma de gestión municipal. Rebanada R4: un
+          módulo se prende y se apaga.
         </p>
       </footer>
     </>

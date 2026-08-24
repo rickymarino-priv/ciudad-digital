@@ -19,20 +19,40 @@ function tokenCsrf(): string | null {
   return cookie ? decodeURIComponent(cookie.slice(prefijo.length)) : null
 }
 
-/** Mensaje de error que mandó el backend, o uno genérico si no mandó ninguno. */
-async function mensajeDeError(respuesta: Response, porDefecto: string): Promise<string> {
+/**
+ * Error de una llamada a la API.
+ *
+ * Además del mensaje, conserva `codigo` y `modulo` cuando el backend los
+ * manda (por ejemplo `MODULO_NO_CONTRATADO`, ADR 0012 §5): sin esto, quien
+ * llama solo puede mostrar el texto del error, no distinguir por qué pasó
+ * para decidir qué mostrar.
+ */
+export class ErrorDeApi extends Error {
+  codigo?: string
+  modulo?: string
+
+  constructor(mensaje: string, codigo?: string, modulo?: string) {
+    super(mensaje)
+    this.name = 'ErrorDeApi'
+    this.codigo = codigo
+    this.modulo = modulo
+  }
+}
+
+/** Error que mandó el backend, o uno genérico si no mandó ninguno. */
+async function errorDeApi(respuesta: Response, porDefecto: string): Promise<ErrorDeApi> {
   try {
-    const cuerpo = (await respuesta.json()) as { error?: string }
-    return cuerpo.error ?? porDefecto
+    const cuerpo = (await respuesta.json()) as { error?: string; codigo?: string; modulo?: string }
+    return new ErrorDeApi(cuerpo.error ?? porDefecto, cuerpo.codigo, cuerpo.modulo)
   } catch {
-    return porDefecto
+    return new ErrorDeApi(porDefecto)
   }
 }
 
 export async function pedir<T>(ruta: string, porDefecto: string): Promise<T> {
   const respuesta = await fetch(ruta)
   if (!respuesta.ok) {
-    throw new Error(await mensajeDeError(respuesta, porDefecto))
+    throw await errorDeApi(respuesta, porDefecto)
   }
   return (await respuesta.json()) as T
 }
@@ -55,7 +75,7 @@ export async function enviar<T>(
   })
 
   if (!respuesta.ok) {
-    throw new Error(await mensajeDeError(respuesta, porDefecto))
+    throw await errorDeApi(respuesta, porDefecto)
   }
   if (respuesta.status === 204) {
     return null

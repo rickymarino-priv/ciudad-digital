@@ -494,3 +494,85 @@ body {
   background-color: color-mix(in srgb, var(--color-error) 8%, var(--color-superficie));
   border-radius: var(--radio);
 }
+
+/*
+ * Etiqueta de "módulo no contratado" sobre un permiso o checkbox: el mismo
+ * color de sistema que los errores, para que se lea sin depender de la
+ * marca del municipio y con contraste garantizado.
+ */
+.badge--atencion {
+  background-color: var(--color-error);
+  color: var(--color-primario-contraste);
+}
+
+/*
+ * Navegación principal, debajo de la marca del municipio.
+ */
+.navegacion {
+  max-width: var(--ancho-maximo);
+  margin: 0 auto;
+  padding-top: calc(var(--espacio) * 0.75);
+}
+
+.navegacion__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.navegacion__item {
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background-color: transparent;
+  color: var(--color-primario-contraste);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.navegacion__item:hover {
+  background-color: color-mix(in srgb, var(--color-primario-contraste) 12%, transparent);
+}
+
+/* El ítem activo se distingue por subrayado y mayor peso, no solo por
+   color: quien no distingue color igual ve cuál está seleccionado. */
+.navegacion__item[aria-current='page'] {
+  border-bottom-color: currentColor;
+  font-weight: 700;
+}
+
+/*
+ * Catálogo de módulos, en el portal.
+ */
+.lista-modulos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espacio);
+}
+
+.tarjeta-modulo {
+  background-color: var(--color-superficie);
+  border: 1px solid color-mix(in srgb, var(--color-texto) 12%, transparent);
+  border-radius: var(--radio);
+  padding: var(--espacio);
+}
+
+.tarjeta-modulo__encabezado {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tarjeta-modulo__encabezado h3 {
+  margin: 0;
+}
