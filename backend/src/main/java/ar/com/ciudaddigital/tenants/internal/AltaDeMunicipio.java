@@ -52,16 +52,22 @@ class AltaDeMunicipio {
     private final CreadorDeBaseDeTenant creador;
     private final MigradorDeTenant migrador;
     private final SembradorDeTenant sembrador;
+    private final AdministracionDeModulos administracionDeModulos;
 
     AltaDeMunicipio(TenantRepository repositorio, CreadorDeBaseDeTenant creador,
-            MigradorDeTenant migrador, SembradorDeTenant sembrador) {
+            MigradorDeTenant migrador, SembradorDeTenant sembrador,
+            AdministracionDeModulos administracionDeModulos) {
         this.repositorio = repositorio;
         this.creador = creador;
         this.migrador = migrador;
         this.sembrador = sembrador;
+        this.administracionDeModulos = administracionDeModulos;
     }
 
     TenantEntity darDeAlta(SolicitudDeAlta solicitud) {
+        // Antes que nada: un código de módulo que no existe rechaza el alta
+        // entera sin haber tocado la base de control ni creado nada.
+        List<String> modulos = administracionDeModulos.validarCatalogoDeModulos(solicitud.modulos());
         validar(solicitud);
 
         String slug = solicitud.slug().toLowerCase(Locale.ROOT);
@@ -72,7 +78,7 @@ class AltaDeMunicipio {
                 solicitud.nombreMunicipio(),
                 slug,
                 nombreBaseDatos,
-                new TenantConfig(solicitud.tema(), List.of())));
+                new TenantConfig(solicitud.tema(), modulos)));
 
         tenant.cambiarEstado(EstadoTenant.APROVISIONANDO);
         repositorio.save(tenant);
@@ -183,7 +189,8 @@ class AltaDeMunicipio {
             String telefono,
             String email,
             Tema tema,
-            Administrador administrador) {
+            Administrador administrador,
+            List<String> modulos) {
     }
 
     /** Primer usuario del municipio, con el rol de administrador. */

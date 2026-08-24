@@ -78,6 +78,15 @@ class TenantEntity {
         this.estado = nuevo;
     }
 
+    /**
+     * Reemplaza toda la configuración: quien llama es responsable de
+     * conservar lo que no quiere tocar (p. ej. el tema al cambiar los
+     * módulos), porque {@code config} se persiste entera (ADR 0007).
+     */
+    void cambiarConfig(TenantConfig nuevo) {
+        this.config = nuevo;
+    }
+
     TenantInfo aTenantInfo() {
         return new TenantInfo(id, slug, nombreMunicipio, nombreBaseDatos);
     }

@@ -81,6 +81,11 @@ class ConfiguracionDeSeguridad {
                         // hacerse sin sesión.
                         .requestMatchers(HttpMethod.GET, "/api/sesion").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/sesion").permitAll()
+                        // Catálogo de módulos (ADR 0012 §7) y ping del
+                        // módulo de ejemplo: el gating por entitlement es lo
+                        // único que los protege, no la sesión.
+                        .requestMatchers(HttpMethod.GET, "/api/modulos").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/ejemplo/ping").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(errores -> errores
                         .authenticationEntryPoint((request, response, e) -> RespuestasJson.error(

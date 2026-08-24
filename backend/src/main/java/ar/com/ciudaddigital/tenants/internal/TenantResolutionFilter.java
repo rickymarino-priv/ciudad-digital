@@ -1,6 +1,7 @@
 package ar.com.ciudaddigital.tenants.internal;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -63,13 +64,25 @@ class TenantResolutionFilter extends OncePerRequestFilter {
         }
 
         TenantHolder.establecer(encontrado.aTenantInfo());
+        TenantModulosHolder.establecer(modulosHabilitados(encontrado));
         try {
             chain.doFilter(request, response);
         } finally {
             // Sin esto, el hilo reutilizado por el próximo request llegaría
             // con el municipio anterior cargado.
             TenantHolder.limpiar();
+            TenantModulosHolder.limpiar();
         }
+    }
+
+    /**
+     * Lista de módulos contratados del tenant resuelto, para que {@code
+     * entitlement.internal.GatingDeModulosFilter} pueda preguntar por ella
+     * más adelante en la cadena (ADR 0012 §2).
+     */
+    private List<String> modulosHabilitados(TenantEntity tenant) {
+        TenantConfig config = tenant.getConfig();
+        return config == null ? List.of() : config.modulosHabilitados();
     }
 
     private void responder(HttpServletResponse response, HttpStatus estado, String mensaje)
