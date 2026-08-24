@@ -7,6 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.io.IOException;
 import java.net.URI;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Comparator;
 
@@ -211,5 +214,16 @@ public abstract class SoporteDeIntegracion {
     /** Request al portal de un municipio, identificado por su subdominio. */
     protected static URI portalDe(String subdominio, String ruta) {
         return URI.create("http://" + subdominio + ".localhost" + ruta);
+    }
+
+    /**
+     * Conexión JDBC directa a la base de un municipio de prueba, para
+     * inspeccionar tablas que un mecanismo transversal escribe por su
+     * cuenta (ADR 0013, {@code event_publication}) y que no tienen una API
+     * propia para leerlas.
+     */
+    protected Connection conectarComoTenant(String slug) throws SQLException {
+        return DriverManager.getConnection(
+                servidorDeTenants() + "tenant_" + slug, POSTGRES.getUsername(), POSTGRES.getPassword());
     }
 }

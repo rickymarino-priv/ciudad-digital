@@ -45,7 +45,7 @@ class SembradorDeUsuarioDePlataforma {
     }
 
     @EventListener(ApplicationReadyEvent.class)
-    @Transactional
+    @Transactional("controlTransactionManager")
     void sembrarSiHaceFalta() {
         if (usuarios.count() > 0) {
             return;

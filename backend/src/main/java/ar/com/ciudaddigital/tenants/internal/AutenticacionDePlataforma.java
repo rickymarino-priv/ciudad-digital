@@ -11,10 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Verifica credenciales de la API de administración (ADR 0010).
  *
- * <p>Corre contra la base de control: el gestor de transacciones por
- * defecto ya es el de control (ver {@code ConfiguracionDePersistencia}),
- * así que no hace falta nombrarlo, a diferencia de
- * {@code acceso.internal.AutenticacionDeMunicipio}.
+ * <p>Corre contra la base de control, nombrada explícitamente (ADR 0013
+ * §1): el gestor de transacciones por defecto pasó a ser el de tenant
+ * desde R5, porque el registro persistente de eventos de Spring Modulith
+ * —código de terceros que no conoce las dos unidades de persistencia de
+ * este proyecto— siempre usa el que esté marcado {@code @Primary}, y ese
+ * mecanismo tiene que escribir en la base del municipio (ver
+ * {@code ConfiguracionDePersistencia}).
  */
 @Service
 class AutenticacionDePlataforma {
@@ -36,7 +39,7 @@ class AutenticacionDePlataforma {
         this.hashDeRelleno = encoder.encode(UUID.randomUUID().toString());
     }
 
-    @Transactional
+    @Transactional("controlTransactionManager")
     UsuarioPlataformaAutenticado autenticar(String email, String password) {
         Optional<UsuarioPlataformaEntity> encontrado =
                 usuarios.findByEmailIgnoreCase(email == null ? "" : email.trim());
@@ -53,7 +56,7 @@ class AutenticacionDePlataforma {
         return UsuarioPlataformaAutenticado.de(usuario);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "controlTransactionManager", readOnly = true)
     Optional<UsuarioPlataformaAutenticado> refrescar(Long id) {
         return usuarios.findById(id)
                 .filter(UsuarioPlataformaEntity::isActivo)

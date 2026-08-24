@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.SharedEntityManagerCreator;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -19,6 +20,7 @@ import com.zaxxer.hikari.HikariDataSource;
 
 import ar.com.ciudaddigital.ConfiguracionDeBasesDeDatos.Control;
 import ar.com.ciudaddigital.ConfiguracionDeBasesDeDatos.Tenants;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 
 /**
@@ -36,6 +38,18 @@ import jakarta.persistence.EntityManagerFactory;
  * guarde datos del municipio se suma a esa lista; no hay descubrimiento
  * automático a propósito, porque equivocarse de unidad de persistencia
  * significa escribir en la base equivocada.
+ *
+ * <p>Desde R5 (ADR 0013), el gestor de transacciones y el
+ * {@link EntityManager} <em>por defecto</em> de la aplicación son los de
+ * tenant, no los de control como antes: el registro persistente de eventos
+ * de Spring Modulith es código de terceros que siempre usa el default sin
+ * nombrarlo, y tiene que escribir en la base del municipio. El código que
+ * necesita explícitamente el de control lo nombra
+ * ({@code @Transactional("controlTransactionManager")}). Los dos
+ * envoltorios {@code *TolerantePorAusenciaDeTenant} de este paquete
+ * existen porque ese mismo mecanismo de Spring Modulith corre una vez al
+ * arrancar el proceso, antes de que exista ningún tenant resuelto — ver su
+ * Javadoc para el detalle.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({ Control.class, Tenants.class })
@@ -49,6 +63,17 @@ class ConfiguracionDePersistencia {
 
     /** Usuarios, roles y permisos del municipio (ADR 0010). */
     static final String PAQUETE_ACCESO = "ar.com.ciudaddigital.acceso";
+
+    /** Registro de auditoría del municipio (ADR 0013 §3). */
+    static final String PAQUETE_AUDITORIA = "ar.com.ciudaddigital.auditoria";
+
+    /**
+     * Entidad de Spring Modulith que registra las publicaciones de eventos
+     * (tabla {@code event_publication}). Vive en la base de tenant, no en
+     * la de control: todo evento hoy nace de una acción dentro del portal
+     * de un municipio (ADR 0013 §1).
+     */
+    static final String PAQUETE_EVENTOS = "org.springframework.modulith.events.jpa";
 
     /*
      * @EnableJpaRepositories no es repetible, así que cada unidad de
@@ -68,7 +93,7 @@ class ConfiguracionDePersistencia {
 
     @Configuration(proxyBeanMethods = false)
     @EnableJpaRepositories(
-            basePackages = { PAQUETE_MUNICIPIO, PAQUETE_ACCESO },
+            basePackages = { PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA },
             entityManagerFactoryRef = "tenantEntityManagerFactory",
             transactionManagerRef = "tenantTransactionManager")
     static class RepositoriosDeTenant {
@@ -87,8 +112,17 @@ class ConfiguracionDePersistencia {
         return pool;
     }
 
+    /*
+     * Sin @Primary acá a propósito: Spring, al resolver por tipo un
+     * EntityManager ambiguo entre las dos unidades, también evalúa este
+     * EMF como candidato (el objeto que produce implementa
+     * org.hibernate.SessionFactory, que a su vez extiende
+     * EntityManagerFactory) aunque nunca sea, en los hechos, un
+     * EntityManager. Si este bean fuera @Primary competiría con
+     * tenantEntityManager por esa ambigüedad y Spring Modulith terminaría
+     * escribiendo eventos contra la base de control (ADR 0013 §1).
+     */
     @Bean
-    @Primary
     LocalContainerEntityManagerFactoryBean controlEntityManagerFactory(DataSource controlDataSource) {
         var emf = new LocalContainerEntityManagerFactoryBean();
         emf.setDataSource(controlDataSource);
@@ -99,8 +133,14 @@ class ConfiguracionDePersistencia {
         return emf;
     }
 
+    /*
+     * Sin @Primary acá a propósito, desde R5 (ver tenantTransactionManager,
+     * más abajo, y el porqué en su comentario): el código de este proyecto
+     * que necesita este gestor lo nombra explícitamente
+     * ({@code @Transactional("controlTransactionManager")}), como ya hacía
+     * el resto del código de tenant.
+     */
     @Bean
-    @Primary
     PlatformTransactionManager controlTransactionManager(
             @org.springframework.beans.factory.annotation.Qualifier("controlEntityManagerFactory") EntityManagerFactory emf) {
         return new JpaTransactionManager(emf);
@@ -124,17 +164,47 @@ class ConfiguracionDePersistencia {
     LocalContainerEntityManagerFactoryBean tenantEntityManagerFactory(DataSourceDeTenants tenantDataSource) {
         var emf = new LocalContainerEntityManagerFactoryBean();
         emf.setDataSource(tenantDataSource);
-        emf.setPackagesToScan(PAQUETE_MUNICIPIO, PAQUETE_ACCESO);
+        emf.setPackagesToScan(PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_EVENTOS);
         emf.setPersistenceUnitName("tenant");
         emf.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         emf.setJpaPropertyMap(propiedadesDeTenant());
         return emf;
     }
 
+    /**
+     * {@code @Primary} desde R5 (ADR 0013 §1, §2): el registro persistente
+     * de eventos de Spring Modulith —{@code JpaEventPublicationRepository},
+     * {@code DefaultEventPublicationRegistry}— es código de terceros que no
+     * conoce las dos unidades de persistencia de este proyecto y siempre
+     * abre sus propias transacciones sin nombrar un gestor, así que
+     * necesita que el default de la aplicación sea el correcto: el de
+     * tenant, porque {@code event_publication} vive en la base de cada
+     * municipio. El costo es que el código que sí necesita explícitamente
+     * el de control ({@code tenants.internal}) lo tiene que nombrar —y ya
+     * lo nombra, siguiendo la misma convención que {@code acceso}.
+     */
     @Bean
+    @Primary
     PlatformTransactionManager tenantTransactionManager(
             @org.springframework.beans.factory.annotation.Qualifier("tenantEntityManagerFactory") EntityManagerFactory emf) {
-        return new JpaTransactionManager(emf);
+        return TransactionManagerTolerantePorAusenciaDeTenant.envolver(new JpaTransactionManager(emf));
+    }
+
+    /**
+     * {@code JpaEventPublicationConfiguration} de Spring Modulith pide un
+     * {@link EntityManager} por autowiring de tipo. Sin este bean no habría
+     * ninguno en el contexto (los repositorios de arriba se resuelven por
+     * {@code EntityManagerFactory}, no por {@code EntityManager}); con dos
+     * EMFs en juego, exponer el de tenant explícitamente es lo que evita
+     * que Spring Modulith termine, por ambigüedad, sin saber a cuál
+     * conectarse — o peor, resolviendo el de control (ADR 0013 §1).
+     */
+    @Bean
+    @Primary
+    EntityManager tenantEntityManager(
+            @org.springframework.beans.factory.annotation.Qualifier("tenantEntityManagerFactory") EntityManagerFactory emf) {
+        EntityManager compartido = SharedEntityManagerCreator.createSharedEntityManager(emf);
+        return EntityManagerTolerantePorAusenciaDeTenant.envolver(compartido);
     }
 
     private Map<String, Object> propiedadesDeTenant() {

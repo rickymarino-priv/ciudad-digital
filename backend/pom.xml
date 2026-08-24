@@ -60,13 +60,16 @@
 			<artifactId>spring-modulith-starter-core</artifactId>
 		</dependency>
 		<!--
-		  spring-modulith-starter-jpa (registro persistente de eventos) se
-		  incorpora en R5, junto con las notificaciones: es la primera
-		  rebanada con eventos reales entre módulos. Recién ahí se decide
-		  en qué base vive la tabla event_publication (control o tenant).
+		  Registro persistente de publicaciones de eventos (ADR 0013 §1, §2):
+		  entrega al menos una vez aunque el listener falle o la app se
+		  reinicie a mitad de proceso. La tabla event_publication vive en la
+		  base de cada tenant, no en la de control (ver
+		  ConfiguracionDePersistencia y la migración db/tenant).
 		-->
-
-
+		<dependency>
+			<groupId>org.springframework.modulith</groupId>
+			<artifactId>spring-modulith-starter-jpa</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
