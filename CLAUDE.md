@@ -33,6 +33,10 @@ de datasource". Es una pieza, no un avance visible.
 - Si una rebanada no se puede demostrar al final de la semana, es
   demasiado grande: hay que partirla en rebanadas más chicas que **igual
   se vean**, no en capas horizontales.
+- Toda rebanada no trivial se especifica antes de construirse: primero la
+  especificación técnica (qué se construye, en qué orden, qué queda
+  diferido), después la implementación. No se arranca a escribir código
+  de producto sin ese paso.
 
 ## Qué viaja dentro de cada rebanada (no se difiere)
 
