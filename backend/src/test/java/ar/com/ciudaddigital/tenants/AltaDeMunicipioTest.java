@@ -37,8 +37,10 @@ class AltaDeMunicipioTest extends SoporteDeIntegracion {
                 .andExpect(jsonPath("$[?(@.slug=='tandil')].estado").value("ACTIVO"))
                 .andExpect(jsonPath("$[?(@.slug=='tandil')].nombreBaseDatos").value("tenant_tandil"))
                 // La versión se consulta contra la base del municipio: si
-                // la migración no hubiera corrido, no habría ninguna.
-                .andExpect(jsonPath("$[?(@.slug=='tandil')].versionDeEsquema").value("1"));
+                // las migraciones no hubieran corrido —o hubieran corrido a
+                // medias— no coincidiría con la última que existe.
+                .andExpect(jsonPath("$[?(@.slug=='tandil')].versionDeEsquema")
+                        .value(ultimaVersionDeEsquemaDeTenant()));
     }
 
     @Test

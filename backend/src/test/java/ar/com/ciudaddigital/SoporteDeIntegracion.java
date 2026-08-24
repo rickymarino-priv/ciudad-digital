@@ -1,9 +1,14 @@
 package ar.com.ciudaddigital;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.IOException;
 import java.net.URI;
+import java.util.Arrays;
+import java.util.Comparator;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -11,7 +16,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
@@ -28,6 +37,12 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 public abstract class SoporteDeIntegracion {
 
     protected static final String TOKEN_ADMIN = "token-de-prueba";
+
+    /**
+     * Contraseña del administrador que se siembra en cada municipio de
+     * prueba. Larga porque el alta exige un mínimo, no porque acá importe.
+     */
+    protected static final String PASSWORD_DE_PRUEBA = "contrasena-de-prueba";
 
     /**
      * Un único contenedor para toda la suite: cada alta crea una base de
@@ -86,6 +101,11 @@ public abstract class SoporteDeIntegracion {
                   "direccion": "Av. Siempreviva 742",
                   "telefono": "0800-%s",
                   "email": "contacto@%s.gob.ar",
+                  "administrador": {
+                    "nombre": "Administrador de %s",
+                    "email": "%s",
+                    "password": "%s"
+                  },
                   "tema": {
                     "colorPrimario": "%s",
                     "colorPrimarioContraste": "#FFFFFF",
@@ -98,7 +118,9 @@ public abstract class SoporteDeIntegracion {
                     "logoUrl": "data:image/svg+xml;base64,PHN2Zy8+"
                   }
                 }
-                """.formatted(slug, nombre, slug, slug, colorPrimario);
+                """.formatted(slug, nombre, slug, slug,
+                        nombre, emailDelAdministrador(slug), PASSWORD_DE_PRUEBA,
+                        colorPrimario);
 
         mvc.perform(post("/api/admin/municipios")
                 .header("X-Admin-Token", TOKEN_ADMIN)
@@ -111,6 +133,54 @@ public abstract class SoporteDeIntegracion {
                                 + estado + " — " + result.getResponse().getContentAsString());
                     }
                 });
+    }
+
+    /**
+     * Última versión de esquema que existe para las bases de municipio.
+     *
+     * <p>Se calcula leyendo las migraciones en vez de escribirse a mano:
+     * un número fijo obligaría a tocar los tests cada vez que se agrega una
+     * migración, y ese cambio mecánico es justo el que se hace sin pensar.
+     */
+    protected static String ultimaVersionDeEsquemaDeTenant() throws IOException {
+        Resource[] migraciones = new PathMatchingResourcePatternResolver()
+                .getResources("classpath:db/tenant/V*__*.sql");
+
+        return Arrays.stream(migraciones)
+                .map(Resource::getFilename)
+                .filter(nombre -> nombre != null)
+                .map(nombre -> nombre.substring(1, nombre.indexOf("__")))
+                .max(Comparator.comparingInt(Integer::parseInt))
+                .orElseThrow(() -> new IllegalStateException(
+                        "No hay migraciones de tenant en el classpath."));
+    }
+
+    /** Email del administrador sembrado por {@link #asegurarMunicipio}. */
+    protected static String emailDelAdministrador(String slug) {
+        return "admin@" + slug + ".gob.ar";
+    }
+
+    /**
+     * Abre una sesión en el portal de un municipio y devuelve la sesión
+     * resultante, para poder mandarla en los requests siguientes.
+     */
+    protected MockHttpSession iniciarSesion(String subdominio, String email, String password)
+            throws Exception {
+
+        MvcResult resultado = mvc.perform(post(portalDe(subdominio, "/api/sesion"))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"email":"%s","password":"%s"}""".formatted(email, password)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        return (MockHttpSession) resultado.getRequest().getSession(false);
+    }
+
+    /** Sesión del administrador de un municipio de prueba. */
+    protected MockHttpSession iniciarSesionDeAdministrador(String slug) throws Exception {
+        return iniciarSesion(slug, emailDelAdministrador(slug), PASSWORD_DE_PRUEBA);
     }
 
     /** Request al portal de un municipio, identificado por su subdominio. */
