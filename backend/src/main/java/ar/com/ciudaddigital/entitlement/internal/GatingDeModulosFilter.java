@@ -6,8 +6,10 @@ import java.util.Optional;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.server.PathContainer;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.ServletRequestPathUtils;
 
 import ar.com.ciudaddigital.entitlement.CatalogoDeModulos;
 import ar.com.ciudaddigital.entitlement.DescriptorDeModulo;
@@ -52,7 +54,7 @@ class GatingDeModulosFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String ruta = request.getRequestURI();
+        String ruta = rutaDespachada(request);
         // Misma exclusión que TenantResolutionFilter: la API de
         // administración es cross-tenant, no hay tenant resuelto contra el
         // que preguntar si un módulo está contratado.
@@ -63,7 +65,7 @@ class GatingDeModulosFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain chain) throws ServletException, IOException {
 
-        Optional<DescriptorDeModulo> modulo = moduloDe(request.getRequestURI());
+        Optional<DescriptorDeModulo> modulo = moduloDe(rutaDespachada(request));
 
         if (modulo.isEmpty()) {
             // No pertenece a ningún módulo declarado: es canon base y no se
@@ -90,6 +92,35 @@ class GatingDeModulosFilter extends OncePerRequestFilter {
     /** Coincidencia por segmento: {@code /api/ejemplote} no matchea {@code /api/ejemplo}. */
     private boolean coincide(String ruta, String prefijo) {
         return ruta.equals(prefijo) || ruta.startsWith(prefijo + "/");
+    }
+
+    /**
+     * Ruta decodificada por segmento y sin parámetros de matriz ({@code ;}),
+     * en la misma forma que usa Spring MVC para elegir el handler
+     * ({@link org.springframework.web.util.pattern.PathPattern}, sobre el
+     * {@code RequestPath} parseado). Gatear contra {@code
+     * request.getRequestURI()} —la URI cruda— deja pasar variantes
+     * percent-encoded equivalentes como {@code /api/%65jemplo/ping}: son la
+     * misma ruta para el que despacha y otra distinta para el que gatea, y
+     * el request termina en el handler de un módulo apagado (ADR 0012 §3).
+     *
+     * <p>Cachear acá el {@code RequestPath} parseado no rompe el despacho
+     * posterior: el {@code DispatcherServlet} vuelve a parsearlo por su
+     * cuenta antes de despachar y restaura el valor previo del atributo al
+     * terminar, así que lo que dejamos acá no se filtra a otro request ni
+     * altera cómo Spring MVC resuelve el handler.
+     */
+    private static String rutaDespachada(HttpServletRequest request) {
+        PathContainer pathWithinApplication =
+                ServletRequestPathUtils.parseAndCache(request).pathWithinApplication();
+
+        StringBuilder ruta = new StringBuilder();
+        for (PathContainer.Element elemento : pathWithinApplication.elements()) {
+            ruta.append(elemento instanceof PathContainer.PathSegment segmento
+                    ? segmento.valueToMatch()
+                    : elemento.value());
+        }
+        return ruta.toString();
     }
 
     private void responderNoContratado(HttpServletResponse response, String codigoModulo)

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Login } from './acceso/Login'
 import { PanelDeAdministracion } from './acceso/PanelDeAdministracion'
@@ -24,21 +24,28 @@ export default function App() {
   const tituloPortal = useRef<HTMLHeadingElement>(null)
   const vistaAnterior = useRef<Vista['tipo']>(vista.tipo)
 
-  useEffect(() => {
-    if (vista.tipo === 'portal' && vistaAnterior.current !== 'portal') {
-      tituloPortal.current?.focus()
-    }
-    vistaAnterior.current = vista.tipo
-  }, [vista])
-
   // Si se navegó a un módulo cuyo código no tiene pantalla registrada (por
   // ejemplo, uno que se apagó y ya no está en el catálogo), no hay nada
-  // roto que mostrar: se vuelve al portal.
+  // roto que mostrar: se cae al portal. Se deriva durante el render en vez
+  // de sincronizar estado con un efecto —no hay nada que se apague al
+  // desmontar, es un valor calculado a partir de `vista`— y así la
+  // navegación y el contenido usan siempre la misma vista efectiva, sin un
+  // render intermedio en el que quede un ítem de la navegación marcado
+  // como actual para una pantalla que ya no se muestra.
+  const vistaEfectiva: Vista = useMemo(
+    () =>
+      vista.tipo === 'modulo' && !(vista.codigo in registroDePantallasDeModulo)
+        ? { tipo: 'portal' }
+        : vista,
+    [vista],
+  )
+
   useEffect(() => {
-    if (vista.tipo === 'modulo' && !(vista.codigo in registroDePantallasDeModulo)) {
-      setVista({ tipo: 'portal' })
+    if (vistaEfectiva.tipo === 'portal' && vistaAnterior.current !== 'portal') {
+      tituloPortal.current?.focus()
     }
-  }, [vista])
+    vistaAnterior.current = vistaEfectiva.tipo
+  }, [vistaEfectiva])
 
   const usuario = sesion.estado.estado === 'autenticado' ? sesion.estado.usuario : null
 
@@ -91,10 +98,11 @@ export default function App() {
   // de mostrar un estado intermedio que después empuje los ítems.
   const modulosParaNavegacion = modulos.estado === 'listo' ? modulos.modulos : []
 
-  const ComponenteDeModulo = vista.tipo === 'modulo' ? registroDePantallasDeModulo[vista.codigo] : undefined
+  const ComponenteDeModulo =
+    vistaEfectiva.tipo === 'modulo' ? registroDePantallasDeModulo[vistaEfectiva.codigo] : undefined
   const moduloActual =
-    vista.tipo === 'modulo' && modulos.estado === 'listo'
-      ? modulos.modulos.find((modulo) => modulo.codigo === vista.codigo)
+    vistaEfectiva.tipo === 'modulo' && modulos.estado === 'listo'
+      ? modulos.modulos.find((modulo) => modulo.codigo === vistaEfectiva.codigo)
       : undefined
 
   return (
@@ -156,7 +164,7 @@ export default function App() {
 
         <Navegacion
           modulos={modulosParaNavegacion}
-          vista={vista}
+          vista={vistaEfectiva}
           veAdministracion={veAdministracion}
           onIrAPortal={() => setVista({ tipo: 'portal' })}
           onIrAModulo={(codigo) => setVista({ tipo: 'modulo', codigo })}
@@ -164,15 +172,15 @@ export default function App() {
         />
       </header>
 
-      {vista.tipo === 'ingreso' ? (
+      {vistaEfectiva.tipo === 'ingreso' ? (
         <Login
           nombreMunicipio={tenant.nombreMunicipio}
           onIniciar={iniciarYVolverAlPortal}
           onVolver={() => setVista({ tipo: 'portal' })}
         />
-      ) : vista.tipo === 'administracion' && usuario ? (
+      ) : vistaEfectiva.tipo === 'administracion' && usuario ? (
         <PanelDeAdministracion usuario={usuario} onVolver={() => setVista({ tipo: 'portal' })} />
-      ) : vista.tipo === 'modulo' && ComponenteDeModulo ? (
+      ) : vistaEfectiva.tipo === 'modulo' && ComponenteDeModulo ? (
         <ComponenteDeModulo
           modulo={moduloActual}
           onVolver={() => setVista({ tipo: 'portal' })}
@@ -186,6 +194,18 @@ export default function App() {
             Este es el portal digital del municipio. Los trámites, reclamos y
             servicios se van a ir incorporando por etapas.
           </p>
+
+          {/* Sin sesión no se muestra el catálogo (más abajo, dentro de
+              CatalogoDeModulos), pero si falló, un visitante anónimo tiene
+              que poder distinguirlo de "este municipio no contrató ningún
+              módulo": si no, un portal vacío por error de red se ve igual
+              que uno legítimamente sin módulos contratados. Mientras
+              `cargando` no se anuncia nada. */}
+          {!usuario && modulos.estado === 'error' && (
+            <p className="formulario__error" role="alert">
+              {modulos.mensaje}
+            </p>
+          )}
 
           {usuario && (
             <section aria-labelledby="titulo-escritorio">

@@ -36,9 +36,17 @@ Un módulo contratable existe porque hay código que lo implementa. El mismo
 criterio que el ADR 0011 usa para el catálogo de permisos.
 
 Cada módulo funcional publica un bean `DescriptorDeModulo` con su `codigo`
-(identificador comercial estable), `nombre`, `descripcion` y los
-`prefijosDeApi` que le pertenecen. El catálogo es la suma de los
-descriptores presentes en el contexto.
+(identificador comercial estable), `nombre`, `descripcion`, los
+`prefijosDeApi` que le pertenecen y cuáles de sus rutas son de **lectura
+pública** (accesibles sin sesión, como el portal que ve un vecino). El
+catálogo es la suma de los descriptores presentes en el contexto.
+
+Que las rutas públicas viajen en el descriptor es lo que evita que agregar
+un módulo obligue a editar la cadena de seguridad, que es código de otro
+módulo: la cadena las consume del catálogo. Un módulo que necesite exponer
+**escritura** anónima —un trámite que un vecino inicia sin cuenta— no está
+contemplado acá y requiere su propia decisión cuando aparezca; no se
+anticipa.
 
 La base de control guarda, por tenant, **solo la lista de códigos
 habilitados** en `config` ([ADR 0007](0007-modelo-de-datos-del-tenant.md)).
@@ -72,6 +80,14 @@ El request se atribuye a un módulo por **prefijo de ruta de API**
 (`/api/ejemplo/**` pertenece al módulo `ejemplo`). Es la información que
 está disponible antes de que exista handler resuelto, y es la que permite
 rechazar sin que el módulo apagado ejecute nada.
+
+La ruta que se compara tiene que ser **la misma que después usa Spring MVC
+para elegir el handler**: decodificada y normalizada. Comparar contra la
+URI cruda deja pasar cualquier variante equivalente —`/api/%65jemplo/ping`
+es la misma ruta para el que despacha y otra distinta para el que gatea—,
+y el request termina en el handler de un módulo apagado. Toda decisión de
+gating que se tome sobre una forma de la ruta distinta de la que despacha
+es, por construcción, evitable.
 
 El filtro corre **después de la resolución de tenant**
 ([ADR 0004](0004-resolucion-de-tenant-por-subdominio.md)) y **antes de la
@@ -184,9 +200,14 @@ lugar como sujeto de los tests de gating.
 ## Consecuencias
 
 - Agregar un módulo funcional implica tres cosas explícitas: publicar su
-  `DescriptorDeModulo`, agregar sus permisos al catálogo por migración
-  (ADR 0011) y registrar su pantalla en el frontend. Ninguna toca código
-  compartido.
+  `DescriptorDeModulo` —incluidas sus rutas de lectura pública—, agregar
+  sus permisos al catálogo por migración (ADR 0011) y registrar su pantalla
+  en el frontend. Ninguna toca código compartido: ni la cadena de
+  seguridad, ni el filtro de gating, ni el módulo de tenants.
+- Eliminar un módulo también tiene su costo explícito: sus permisos quedan
+  sembrados en la base de cada municipio y hace falta una migración de
+  limpieza. Vale en particular para el módulo `ejemplo` cuando se lo dé de
+  baja en Fase 1.
 - El módulo `entitlement` no puede depender de módulos funcionales; el test
   de modularidad de Spring Modulith lo verifica en el build.
 - Un módulo que se apaga deja permisos asignados en roles del municipio.

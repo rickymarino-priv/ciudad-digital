@@ -11,10 +11,10 @@ import java.util.Set;
  * lleva solo lo necesario: nunca el hash de la contraseña.
  *
  * <p>Implementa {@link Principal} para que {@code Authentication#getName()}
- * devuelva el email: es la forma en la que un módulo funcional (p. ej.
- * {@code ejemplo}) identifica al usuario autenticado sin depender de este
- * tipo, que es interno de {@code acceso}. Sin esto, {@code getName()} caería
- * en {@code Object#toString()} del record.
+ * devuelva el email: es la forma en la que un módulo funcional identifica al
+ * usuario autenticado sin depender de este tipo, que es interno de {@code
+ * acceso}. Sin esto, {@code getName()} caería en {@code Object#toString()}
+ * del record.
  */
 record UsuarioAutenticado(Long id, String nombre, String email, Set<String> permisos)
         implements Serializable, Principal {

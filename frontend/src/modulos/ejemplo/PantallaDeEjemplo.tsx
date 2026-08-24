@@ -18,7 +18,11 @@ type RespuestaEco = {
 type EstadoPing =
   | { estado: 'cargando' }
   | { estado: 'listo'; respuesta: RespuestaPing }
-  | { estado: 'no-contratado'; mensaje: string }
+  // Guarda el código de módulo que devolvió el backend, no el mensaje ya
+  // armado: el texto se compone durante el render a partir de `modulo`
+  // (la entrada del catálogo, si ya cargó), para no tener que declarar
+  // `modulo` como dependencia del efecto que hace el ping.
+  | { estado: 'no-contratado'; moduloDelError: string }
   | { estado: 'error'; mensaje: string }
 
 type Props = {
@@ -52,7 +56,6 @@ export function PantallaDeEjemplo({ modulo, onVolver }: Props) {
   const [errorEco, setErrorEco] = useState<string | null>(null)
 
   const titulo = useRef<HTMLHeadingElement>(null)
-  const avisoNoContratadoRef = useRef<HTMLParagraphElement>(null)
   const errorEcoRef = useRef<HTMLParagraphElement>(null)
 
   useEffect(() => {
@@ -61,7 +64,6 @@ export function PantallaDeEjemplo({ modulo, onVolver }: Props) {
 
   useEffect(() => {
     let vigente = true
-    setPing({ estado: 'cargando' })
 
     pedir<RespuestaPing>('/api/ejemplo/ping', 'No se pudo consultar el módulo de ejemplo.')
       .then((respuesta) => {
@@ -76,7 +78,7 @@ export function PantallaDeEjemplo({ modulo, onVolver }: Props) {
         if (fallo instanceof ErrorDeApi && fallo.codigo === 'MODULO_NO_CONTRATADO') {
           setPing({
             estado: 'no-contratado',
-            mensaje: mensajeModuloNoContratado(modulo?.nombre ?? fallo.modulo ?? 'ejemplo'),
+            moduloDelError: fallo.modulo ?? 'ejemplo',
           })
         } else {
           setPing({
@@ -89,13 +91,13 @@ export function PantallaDeEjemplo({ modulo, onVolver }: Props) {
     return () => {
       vigente = false
     }
-  }, [modulo])
+  }, [])
 
-  useEffect(() => {
-    if (ping.estado === 'no-contratado') {
-      avisoNoContratadoRef.current?.focus()
-    }
-  }, [ping])
+  // El foco no se mueve acá: la respuesta del ping llega sola, sin que
+  // medie ninguna acción de la persona, y moverlo la interrumpiría
+  // mientras tabula. El aviso ya lleva role="alert", que alcanza para que
+  // el lector de pantalla lo anuncie sin robar el foco (a diferencia del
+  // error del eco, más abajo, que sí es consecuencia de un submit).
 
   useEffect(() => {
     if (errorEco) {
@@ -153,13 +155,8 @@ export function PantallaDeEjemplo({ modulo, onVolver }: Props) {
         {ping.estado === 'cargando' && <p role="status">Consultando el módulo…</p>}
 
         {ping.estado === 'no-contratado' && (
-          <p
-            className="formulario__error"
-            role="alert"
-            tabIndex={-1}
-            ref={avisoNoContratadoRef}
-          >
-            {ping.mensaje}
+          <p className="formulario__error" role="alert">
+            {mensajeModuloNoContratado(modulo?.nombre ?? ping.moduloDelError)}
           </p>
         )}
 

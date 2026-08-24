@@ -197,6 +197,20 @@ se pida —sin sesión, es lo que pinta la navegación— está en
 curl http://sanmartin.localhost:8080/api/modulos
 ```
 
+### Verlo en el portal
+
+El portal pide el catálogo una vez, al arrancar, así que después de prender
+o apagar un módulo hay que **recargar la página** para que la navegación se
+rearme.
+
+Con el módulo prendido en San Martín y apagado en Morón, en
+<http://sanmartin.localhost:5173> aparece "Módulo de ejemplo" en la
+navegación y en <http://moron.localhost:5173> no. Entrando con un usuario
+del municipio, la sección "Módulos" del portal muestra el catálogo completo
+con su estado, y en los no contratados ofrece abrir la pantalla igual: se
+abre, y la API rechaza el pedido. Eso es lo que hace visible que esconder
+el módulo en el frontend es comodidad, y el enforcement está en el backend.
+
 ## Ver los portales
 
 El municipio se resuelve por subdominio (ADR 0004), así que **no** se entra

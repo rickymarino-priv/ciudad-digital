@@ -23,6 +23,12 @@
    * cada municipio, alguno lo dejaría ilegible sobre su propio fondo.
    */
   --color-error: #8c1d18;
+  /*
+   * Texto sobre --color-error. También es de sistema y por la misma razón:
+   * --color-primario-contraste está pensado para contrastar contra
+   * --color-primario, no contra el rojo de error, así que no sirve acá.
+   */
+  --color-error-contraste: #ffffff;
 
   --ancho-maximo: 60rem;
   --radio: 0.5rem;
@@ -246,10 +252,13 @@ body {
 
 /* Para acciones destructivas, como confirmar el borrado de un rol. Usa el
    mismo color de sistema que los mensajes de error: no viene del tema del
-   municipio, para que mantenga su contraste sea cual sea la marca. */
+   municipio, para que mantenga su contraste sea cual sea la marca. El
+   texto usa --color-error-contraste, no --color-primario-contraste: ese
+   token está pensado para contrastar contra --color-primario, no contra
+   el rojo de error, y con algunos temas no alcanza el 4.5:1. */
 .boton--peligro {
   background-color: var(--color-error);
-  color: var(--color-primario-contraste);
+  color: var(--color-error-contraste);
 }
 
 .boton--peligro:hover:not(:disabled) {
@@ -498,11 +507,17 @@ body {
 /*
  * Etiqueta de "módulo no contratado" sobre un permiso o checkbox: el mismo
  * color de sistema que los errores, para que se lea sin depender de la
- * marca del municipio y con contraste garantizado.
+ * marca del municipio. Usa --color-error-contraste (no
+ * --color-primario-contraste, que solo está garantizado contra
+ * --color-primario) para que el 4.5:1 de WCAG 1.4.3 se cumpla con
+ * cualquier tema. Además permite el salto de línea: en el panel de roles
+ * el texto es más largo que el "SISTEMA" corto de .badge, y a 200% de
+ * zoom no tiene que desbordar.
  */
 .badge--atencion {
   background-color: var(--color-error);
-  color: var(--color-primario-contraste);
+  color: var(--color-error-contraste);
+  white-space: normal;
 }
 
 /*
@@ -534,6 +549,17 @@ body {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* El anillo de foco global usa --color-acento, pensado para contrastar
+   contra el fondo de la página, no contra --color-primario: con algunos
+   temas queda casi invisible acá, que es la navegación principal y el
+   único camino a los módulos (WCAG 1.4.11). Se pisa solo el color, con el
+   mismo grosor y offset que el foco global, por --color-primario-contraste,
+   que sí está garantizado contra --color-primario. */
+.navegacion__item:focus-visible,
+.boton--sobre-primario:focus-visible {
+  outline-color: var(--color-primario-contraste);
 }
 
 .navegacion__item:hover {

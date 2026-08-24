@@ -37,4 +37,10 @@ class DescriptorDelModuloEjemplo implements DescriptorDeModulo {
     public List<String> prefijosDeApi() {
         return List.of("/api/ejemplo");
     }
+
+    /** El ping lo tiene que poder ver un vecino anónimo; el eco requiere sesión y permiso. */
+    @Override
+    public List<String> rutasDeLecturaPublica() {
+        return List.of("/api/ejemplo/ping");
+    }
 }

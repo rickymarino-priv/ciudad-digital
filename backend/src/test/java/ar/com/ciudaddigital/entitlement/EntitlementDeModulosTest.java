@@ -56,6 +56,50 @@ class EntitlementDeModulosTest extends SoporteDeIntegracion {
     }
 
     @Test
+    @DisplayName("el percent-encoding no evade el gating: variantes equivalentes de la ruta "
+            + "del módulo apagado, tanto en el endpoint público como en el que pide permiso, "
+            + "responden 403 MODULO_NO_CONTRATADO igual que la forma sin codificar")
+    void elPercentEncodingNoEvadeElGating() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(B, plataforma);
+        MockHttpSession administradorDeB = iniciarSesionDeAdministrador(B);
+
+        // "%65" es "e": /api/%65jemplo/ping es la misma ruta que
+        // /api/ejemplo/ping para quien despacha, y tiene que serlo también
+        // para quien gatea.
+        mvc.perform(get(portalDe(B, "/api/%65jemplo/ping")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo").value("MODULO_NO_CONTRATADO"))
+                .andExpect(jsonPath("$.modulo").value("ejemplo"));
+
+        mvc.perform(post(portalDe(B, "/api/%65jemplo/eco"))
+                .session(administradorDeB)
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"mensaje":"hola"}"""))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo").value("MODULO_NO_CONTRATADO"))
+                .andExpect(jsonPath("$.modulo").value("ejemplo"));
+    }
+
+    @Test
+    @DisplayName("el límite del gating es por segmento: /api/ejemplote no es del módulo ejemplo, "
+            + "así que un módulo apagado no lo rechaza por entitlement")
+    void elGatingNoMatcheaUnPrefijoDeSegmentoParcial() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(B, plataforma);
+
+        // Sin sesión y sin pertenecer a ningún módulo declarado, cae en la
+        // regla base "anyRequest().authenticated()": 401, no el 403 con
+        // 'codigo' que daría un gating que confundiera 'ejemplote' con
+        // 'ejemplo'.
+        mvc.perform(get(portalDe(B, "/api/ejemplote/ping")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.codigo").doesNotExist());
+    }
+
+    @Test
     @DisplayName("aislamiento: el catálogo público refleja el estado de cada municipio "
             + "según el subdominio, sin ningún parámetro")
     void catalogoDeModulosPorSubdominio() throws Exception {

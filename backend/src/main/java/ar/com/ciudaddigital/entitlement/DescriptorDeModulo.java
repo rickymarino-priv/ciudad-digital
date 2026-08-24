@@ -28,4 +28,23 @@ public interface DescriptorDeModulo {
      * {@code /api/ejemplo/...} coinciden, {@code /api/ejemplote} no.
      */
     List<String> prefijosDeApi();
+
+    /**
+     * Rutas de este módulo que se pueden leer con {@code GET} sin sesión
+     * (p. ej. {@code /api/ejemplo/ping}): lo que un vecino anónimo puede ver
+     * en el portal (ADR 0012 §1).
+     *
+     * <p>La cadena de seguridad arma sus reglas de {@code permitAll}
+     * iterando el catálogo, así que declarar acá una ruta pública es lo
+     * único que un módulo con lectura anónima necesita hacer; no implica
+     * tocar {@code acceso.internal.ConfiguracionDeSeguridad}. Solo cubre
+     * lectura: un módulo que necesite exponer escritura anónima requiere su
+     * propia decisión, no está contemplado por este método (ADR 0012 §1).
+     *
+     * <p>Default vacío para que un módulo sin rutas públicas no tenga que
+     * declarar nada.
+     */
+    default List<String> rutasDeLecturaPublica() {
+        return List.of();
+    }
 }
