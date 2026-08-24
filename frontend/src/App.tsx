@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import { Login } from './acceso/Login'
-import { PanelDeUsuarios } from './acceso/PanelDeUsuarios'
+import { PanelDeAdministracion } from './acceso/PanelDeAdministracion'
 import { useSesion } from './acceso/useSesion'
 import { useContacto } from './municipio/useContacto'
 import { useTenant } from './tenant/useTenant'
@@ -10,7 +10,7 @@ export default function App() {
   const estado = useTenant()
   const contacto = useContacto()
   const sesion = useSesion()
-  const [vista, setVista] = useState<'portal' | 'ingreso'>('portal')
+  const [vista, setVista] = useState<'portal' | 'ingreso' | 'administracion'>('portal')
 
   const usuario = sesion.estado.estado === 'autenticado' ? sesion.estado.usuario : null
 
@@ -19,6 +19,13 @@ export default function App() {
   // pantalla tiene que quedarse donde está para mostrar el error.
   async function iniciarYVolverAlPortal(email: string, password: string) {
     await sesion.iniciar(email, password)
+    setVista('portal')
+  }
+
+  // Si cierra sesión estando en la administración, no tiene sentido dejarlo
+  // ahí: ya no hay usuario cuyo permiso justifique mostrarla.
+  async function cerrarYVolverAlPortal() {
+    await sesion.cerrar()
     setVista('portal')
   }
 
@@ -45,6 +52,11 @@ export default function App() {
 
   const { tenant } = estado
   const puede = (permiso: string) => usuario?.permisos.includes(permiso) ?? false
+  const veAdministracion =
+    puede('usuarios.ver') ||
+    puede('usuarios.administrar') ||
+    puede('roles.ver') ||
+    puede('roles.administrar')
 
   return (
     <>
@@ -73,10 +85,19 @@ export default function App() {
               {usuario ? (
                 <>
                   <p className="encabezado__usuario">{usuario.nombre}</p>
+                  {veAdministracion && (
+                    <button
+                      type="button"
+                      className="boton boton--sobre-primario"
+                      onClick={() => setVista('administracion')}
+                    >
+                      Administración
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="boton boton--sobre-primario"
-                    onClick={() => void sesion.cerrar()}
+                    onClick={() => void cerrarYVolverAlPortal()}
                   >
                     Cerrar sesión
                   </button>
@@ -101,6 +122,8 @@ export default function App() {
           onIniciar={iniciarYVolverAlPortal}
           onVolver={() => setVista('portal')}
         />
+      ) : vista === 'administracion' && usuario ? (
+        <PanelDeAdministracion usuario={usuario} onVolver={() => setVista('portal')} />
       ) : (
         <main id="contenido" className="contenido">
           <h1>Portal de {tenant.nombreMunicipio}</h1>
@@ -129,8 +152,6 @@ export default function App() {
               </dl>
             </section>
           )}
-
-          {puede('usuarios.ver') && <PanelDeUsuarios />}
 
           <section aria-labelledby="titulo-estado">
             <h2 id="titulo-estado">Estado de la plataforma</h2>

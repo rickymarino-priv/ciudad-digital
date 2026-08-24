@@ -244,6 +244,18 @@ body {
   background-color: color-mix(in srgb, var(--color-primario-contraste) 18%, transparent);
 }
 
+/* Para acciones destructivas, como confirmar el borrado de un rol. Usa el
+   mismo color de sistema que los mensajes de error: no viene del tema del
+   municipio, para que mantenga su contraste sea cual sea la marca. */
+.boton--peligro {
+  background-color: var(--color-error);
+  color: var(--color-primario-contraste);
+}
+
+.boton--peligro:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-error) 85%, black);
+}
+
 /*
  * Formularios.
  */
@@ -267,8 +279,8 @@ body {
   font-weight: 600;
 }
 
-.campo input {
-  min-height: 2.75rem;
+.campo input,
+.campo textarea {
   padding: 0.5rem 0.75rem;
   border: 2px solid color-mix(in srgb, var(--color-texto) 35%, transparent);
   border-radius: var(--radio);
@@ -278,8 +290,36 @@ body {
   font-size: 1rem;
 }
 
+.campo input {
+  min-height: 2.75rem;
+}
+
+.campo textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
 .campo input[aria-invalid='true'] {
   border-color: var(--color-error);
+}
+
+.campo__ayuda {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-texto-tenue);
+}
+
+/* Checkbox suelto que acompaña una etiqueta corta, como "Activo" en una
+   fila de una tabla: no necesita el layout en columna de .campo. */
+.campo-en-linea {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.campo-en-linea input {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .formulario__error {
@@ -340,4 +380,117 @@ body {
 .tabla tbody tr:last-child th,
 .tabla tbody tr:last-child td {
   border-bottom: none;
+}
+
+/*
+ * Administración: usuarios y roles.
+ */
+
+/* Espacio para el botón u formulario de alta, encima de la lista. */
+.administracion__barra {
+  margin: calc(var(--espacio) * 1.5) 0;
+}
+
+/* Grupo de checkboxes (roles al armar un usuario, permisos al armar un
+   rol). El fieldset/legend nativo es lo que le da a un lector de pantalla
+   el nombre del grupo antes de leer cada opción. */
+.grupo-checkboxes {
+  margin: 0 0 var(--espacio) 0;
+  padding: 0.75rem var(--espacio);
+  border: 2px solid color-mix(in srgb, var(--color-texto) 35%, transparent);
+  border-radius: var(--radio);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.grupo-checkboxes + .grupo-checkboxes {
+  margin-top: calc(var(--espacio) * -0.5);
+}
+
+.grupo-checkboxes legend {
+  padding: 0 0.25rem;
+  font-weight: 600;
+}
+
+.grupo-checkboxes__opcion {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-weight: 400;
+}
+
+.grupo-checkboxes__opcion input {
+  margin-top: 0.2em;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+/* Dentro de una celda de tabla, en modo edición: no hace falta tanto
+   respiro como en un formulario de alta aparte. */
+.grupo-checkboxes--compacto {
+  margin-bottom: 0;
+}
+
+/* Botones de una fila de tabla en modo edición: no necesitan ocupar todo
+   el ancho ni envolver en varias líneas si se puede evitar. */
+.formulario__acciones--compacto {
+  align-items: center;
+}
+
+/* Indicación de que un rol viene de fábrica y no se puede borrar. */
+.badge {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  background-color: color-mix(in srgb, var(--color-primario) 12%, var(--color-superficie));
+  color: var(--color-primario);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.lista-roles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espacio);
+}
+
+.tarjeta-rol {
+  background-color: var(--color-superficie);
+  border: 1px solid color-mix(in srgb, var(--color-texto) 12%, transparent);
+  border-radius: var(--radio);
+  padding: var(--espacio);
+}
+
+.tarjeta-rol__encabezado {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tarjeta-rol__encabezado h3 {
+  margin: 0;
+}
+
+/* Confirmación inline antes de una acción destructiva (borrar un rol):
+   pregunta y botones en la misma línea, navegable por teclado sin abrir
+   ningún diálogo modal. */
+.confirmacion {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.75rem 0 0 0;
+  padding: 0.75rem var(--espacio);
+  border-left: 4px solid var(--color-error);
+  background-color: color-mix(in srgb, var(--color-error) 8%, var(--color-superficie));
+  border-radius: var(--radio);
 }

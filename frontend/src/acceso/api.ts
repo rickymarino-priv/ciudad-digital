@@ -39,7 +39,7 @@ export async function pedir<T>(ruta: string, porDefecto: string): Promise<T> {
 
 export async function enviar<T>(
   ruta: string,
-  metodo: 'POST' | 'PUT' | 'DELETE',
+  metodo: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   cuerpo: unknown,
   porDefecto: string,
 ): Promise<T | null> {
