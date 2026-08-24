@@ -1,5 +1,12 @@
 # Ciudad Digital — reglas del proyecto
 
+## Antes de empezar cualquier tarea
+
+1. **Cargar lo que la tarea necesita, no el repositorio entero** — por lo que vas a tocar
+2. **Qué NO cargar de entrada**: el [`README.md`](README.md) raíz **entero** —es la visión de sistema, no el contexto de una tarea: se le lee la sección que haga falta—, ni `plans/`, `specs/` o `reports/` salvo que la tarea los nombre.
+3. **Lo que no esté arriba**: [`docs/README.md`](docs/README.md), índice de toda la documentación. Diseño, arquitectura, cambio de contrato o multi-servicio → invocar las skills del repo (§Skills).
+
+
 ## Regla principal: avance semanal demostrable
 
 El proyecto avanza en **rebanadas verticales**, no en tickets horizontales
