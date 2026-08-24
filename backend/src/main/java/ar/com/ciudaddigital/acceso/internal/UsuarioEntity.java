@@ -106,6 +106,24 @@ class UsuarioEntity {
         this.ultimoAcceso = momento;
     }
 
+    void renombrar(String nombre) {
+        this.nombre = nombre;
+    }
+
+    void activar() {
+        this.activo = true;
+    }
+
+    void desactivar() {
+        this.activo = false;
+    }
+
+    /** Reemplaza el conjunto de roles por completo, no lo completa. */
+    void asignarRoles(Set<RolEntity> roles) {
+        this.roles.clear();
+        this.roles.addAll(roles);
+    }
+
     /**
      * Permisos efectivos: la unión de los permisos de sus roles. Un usuario
      * sin roles no puede hacer nada, que es el default correcto.

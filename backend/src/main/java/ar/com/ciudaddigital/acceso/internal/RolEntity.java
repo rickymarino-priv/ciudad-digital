@@ -58,6 +58,16 @@ class RolEntity {
     protected RolEntity() {
     }
 
+    /** Rol nuevo del municipio, sin permisos. No es un rol de sistema. */
+    static RolEntity nuevo(String codigo, String nombre, String descripcion) {
+        RolEntity rol = new RolEntity();
+        rol.codigo = codigo;
+        rol.nombre = nombre;
+        rol.descripcion = descripcion;
+        rol.delSistema = false;
+        return rol;
+    }
+
     Long getId() {
         return id;
     }
@@ -80,5 +90,16 @@ class RolEntity {
 
     Set<PermisoEntity> getPermisos() {
         return permisos;
+    }
+
+    void actualizar(String nombre, String descripcion) {
+        this.nombre = nombre;
+        this.descripcion = descripcion;
+    }
+
+    /** Reemplaza el conjunto de permisos por completo, no lo completa. */
+    void asignarPermisos(Set<PermisoEntity> permisos) {
+        this.permisos.clear();
+        this.permisos.addAll(permisos);
     }
 }

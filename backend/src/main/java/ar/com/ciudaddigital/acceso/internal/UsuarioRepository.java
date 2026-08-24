@@ -19,4 +19,6 @@ interface UsuarioRepository extends JpaRepository<UsuarioEntity, Long> {
      * podría no poder entrar con el mismo email con el que fue dado de alta.
      */
     Optional<UsuarioEntity> findByEmailIgnoreCase(String email);
+
+    boolean existsByEmailIgnoreCase(String email);
 }
