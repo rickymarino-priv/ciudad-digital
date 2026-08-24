@@ -75,6 +75,18 @@ mismo mecanismo de aprovisionamiento que el resto del esquema
 autoarranque de esquema de Spring Modulith, que este proyecto no usa en
 ninguna tabla.
 
+El único bean nuevo que hace falta es un `EntityManager` sobre el EMF de
+tenant (`SharedEntityManagerCreator.createSharedEntityManager(...)`), para
+que `JpaEventPublicationConfiguration` —que pide uno por autowiring de
+tipo— tenga a qué engancharse. Como no existía ningún bean de tipo
+`EntityManager` en el contexto antes de esto (los repositorios de control y
+de tenant se resuelven por `EntityManagerFactory`, no por `EntityManager`),
+alcanza con exponer el de tenant: es el único candidato de ese tipo exacto,
+así que Spring lo resuelve sin ambigüedad **sin** tocar qué
+`EntityManagerFactory`/`PlatformTransactionManager` es `@Primary` en el
+resto de la aplicación. El default de la aplicación sigue siendo el de
+control, exactamente como antes de R5 — este ADR no lo cambia.
+
 ### 2. Los listeners de integración corren síncronos, en el hilo del request, sin `@Async`
 
 Para no perder el tenant al saltar de hilo, `auditoria` y `notificaciones`
@@ -105,10 +117,29 @@ mecanismo de propagación de tenant entre hilos que requeriría volver a
 Una falla del listener de email (por ejemplo, el servidor SMTP caído) no
 tira abajo el request original —Spring no repropaga una excepción de un
 callback `afterCommit()`—, y esa fila de `event_publication` queda sin
-completar: `spring.modulith.events.republish-outstanding-events-on-restart=true`
-la reintenta en el próximo arranque de la aplicación, en vez de perderse.
-Esa es, concretamente, la razón de tener el registro persistente desde
-esta rebanada.
+completar. Esa fila incompleta es, concretamente, la razón de tener el
+registro persistente desde esta rebanada: sin él, esa notificación fallida
+se pierde sin dejar rastro.
+
+**No** se habilita en R5 `spring.modulith.events.republish-outstanding-events-on-restart=true`.
+La reincorporación automática que promete esa propiedad asume un único
+almacén de eventos alcanzable al arrancar el proceso; acá hay N —uno por
+cada base de tenant— y ninguno es alcanzable sin resolver primero un
+tenant, que requiere un request con `Host`. Forzar esa propiedad exigiría
+además un cambio bastante más grande de lo que sugiere: como el mecanismo
+de reintento de Spring Modulith usa siempre el `EntityManager`/
+`PlatformTransactionManager` **por defecto** de la aplicación sin
+nombrarlo, y corre antes de que exista ningún tenant resuelto, terminaría
+necesitando volver `@Primary` el `EntityManagerFactory` de tenant —con el
+riesgo de que algún código de `tenants.internal` que hoy confía en el
+default (control) sin nombrarlo empiece a escribir, sin darse cuenta,
+contra la base equivocada— más algún mecanismo que tolere ejecutarse sin
+tenant resuelto al arrancar. Es una pieza de infraestructura nueva,
+riesgosa para la propiedad más sensible del producto (aislamiento entre
+tenants), a cambio de una propiedad que, aun resuelta, en esta arquitectura
+solo podría reintentar contra la base de un tenant a la vez —nunca "todos
+los pendientes de todos los municipios" que su nombre sugiere— sin además
+iterar explícitamente sobre la lista de tenants. Ver Pendiente de definir.
 
 ### 3. Patrón concreto por evento, no una interfaz genérica de "hecho auditable"
 
@@ -166,6 +197,17 @@ municipio, protegida por permiso (`auditoria.ver`), no por entitlement.
   actúa (creo a otro usuario, no me creo a mí mismo); solo
   `SecurityContext` tiene "quién hace el request". Descartada por no
   responder la pregunta que hace falta.
+- **Habilitar `republish-outstanding-events-on-restart` haciendo `@Primary`
+  el `EntityManagerFactory`/`PlatformTransactionManager` de tenant, con un
+  envoltorio que tolere ejecutarse sin tenant resuelto al arrancar**: se
+  probó durante la implementación. Funciona, pero cambia el default de
+  persistencia de toda la aplicación (antes control, ahora tenant) para
+  una propiedad que, en esta arquitectura, no puede cumplir lo que promete
+  —no hay forma de que una consulta sin tenant resuelto encuentre algo que
+  reintentar en ninguna base—, así que el resultado observable es una
+  pieza de infraestructura nueva, con más superficie para un bug de
+  aislamiento, que en la práctica nunca reintenta nada. Descartada por
+  desproporcionada frente al beneficio real.
 
 ## Consecuencias
 
@@ -197,6 +239,16 @@ municipio, protegida por permiso (`auditoria.ver`), no por entitlement.
 
 ## Pendiente de definir
 
+- Reintento automático de publicaciones incompletas al reiniciar la
+  aplicación. Con `event_publication` por tenant, esto no es un booleano:
+  requiere una tarea que enumere los tenants activos (base de control),
+  resuelva `TenantHolder` para cada uno por turno, y dispare la
+  resubmisión de pendientes de esa base puntual —
+  `IncompleteEventPublications` de Spring Modulith expone lo necesario
+  para eso—. Es una pieza real de infraestructura, con su propio costo y
+  su propio test, que no bloquea la demo de esta rebanada: hoy, un email
+  que falla queda con su fila `event_publication` incompleta y visible
+  para diagnóstico manual, pero no se reintenta solo.
 - Migrar los listeners a `@ApplicationModuleListener` asíncrono con
   propagación de `TenantHolder` vía `TaskDecorator`, cuando el volumen de
   la acción o la latencia agregada lo justifiquen.
