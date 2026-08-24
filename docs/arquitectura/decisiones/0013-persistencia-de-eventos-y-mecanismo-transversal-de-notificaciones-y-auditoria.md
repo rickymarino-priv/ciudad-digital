@@ -75,17 +75,52 @@ mismo mecanismo de aprovisionamiento que el resto del esquema
 autoarranque de esquema de Spring Modulith, que este proyecto no usa en
 ninguna tabla.
 
-El único bean nuevo que hace falta es un `EntityManager` sobre el EMF de
-tenant (`SharedEntityManagerCreator.createSharedEntityManager(...)`), para
-que `JpaEventPublicationConfiguration` —que pide uno por autowiring de
-tipo— tenga a qué engancharse. Como no existía ningún bean de tipo
-`EntityManager` en el contexto antes de esto (los repositorios de control y
-de tenant se resuelven por `EntityManagerFactory`, no por `EntityManager`),
-alcanza con exponer el de tenant: es el único candidato de ese tipo exacto,
-así que Spring lo resuelve sin ambigüedad **sin** tocar qué
-`EntityManagerFactory`/`PlatformTransactionManager` es `@Primary` en el
-resto de la aplicación. El default de la aplicación sigue siendo el de
-control, exactamente como antes de R5 — este ADR no lo cambia.
+El bean nuevo que hace falta es un `EntityManager` sobre el EMF de tenant
+(`SharedEntityManagerCreator.createSharedEntityManager(...)`), para que
+`JpaEventPublicationConfiguration` —que pide uno por autowiring de tipo—
+tenga a qué engancharse.
+
+Esto resultó menos simple de lo que parece, por dos ambigüedades reales que
+solo aparecieron al implementar y verificar contra la suite de tests (no
+alcanzaba con razonarlas de antemano):
+
+- **`EntityManager`**: `LocalContainerEntityManagerFactoryBean` implementa
+  `SmartFactoryBean<EntityManagerFactory>`, que también sabe producir un
+  `EntityManager` compartido si se le pide ese tipo. Consecuencia: los
+  beans `controlEntityManagerFactory` y `tenantEntityManagerFactory` son,
+  ellos mismos, candidatos implícitos de tipo `EntityManager`, además del
+  bean explícito de arriba — y `@Primary` en la *bean definition* del EMF
+  "sangra" hacia esa vista implícita. Por eso `controlEntityManagerFactory`
+  **no** lleva `@Primary` (nada en este código autowirea
+  `EntityManagerFactory` sin nombrarlo, así que no hace falta), y el
+  `EntityManager` de tenant sí, para ser el único candidato primario de ese
+  tipo en todo el contexto.
+- **`PlatformTransactionManager`**: `JpaEventPublicationRepository` —la
+  clase de Spring Modulith que hace el trabajo, no anotable por
+  nosotros— lleva `@Transactional` a nivel de clase **sin nombrar
+  gestor**, y sus escrituras (`markProcessing`, `markCompleted`) corren por
+  fuera de la transacción propia del listener (el advisor de Modulith que
+  las envuelve tiene prioridad más alta). Esa transacción sin nombre
+  necesita, igual que el `EntityManager` de arriba, resolver al gestor de
+  **tenant** — si resuelve al de control, Hibernate rechaza el
+  `executeUpdate()` contra el `EntityManager` de tenant con
+  `TransactionRequiredException: No active transaction`. Por eso el
+  default de `PlatformTransactionManager` de toda la aplicación **sí**
+  cambia en R5: pasa a ser `tenantTransactionManager`.
+
+  El único código de este proyecto que necesitaba el default anterior
+  (control) son dos clases de `tenants.internal` —`AutenticacionDePlataforma`
+  y `SembradorDeUsuarioDePlataforma`—, que ahora nombran
+  `@Transactional("controlTransactionManager")` explícitamente en vez de
+  apoyarse en el default. Se verificó por búsqueda en todo el código que no
+  hay ningún otro `@Transactional` sin nombrar gestor que dependiera del
+  default anterior.
+
+En síntesis: el default de `EntityManagerFactory` no cambia (nada lo
+necesitaba); el default de `PlatformTransactionManager` sí, de control a
+tenant, porque el código de terceros de Spring Modulith lo exige y no se
+puede anotar. Es una asimetría real entre los dos tipos, no un descuido —
+está documentada en el Javadoc de `ConfiguracionDePersistencia`.
 
 ### 2. Los listeners de integración corren síncronos, en el hilo del request, sin `@Async`
 
