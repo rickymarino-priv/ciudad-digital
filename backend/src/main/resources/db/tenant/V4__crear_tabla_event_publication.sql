@@ -1,9 +1,11 @@
 -- Registro persistente de publicaciones de eventos de Spring Modulith
 -- (ADR 0013 §1, §2): qué evento se publicó, para qué listener, y si ya
--- terminó de procesarlo. Da entrega al menos una vez: si el listener falla
--- o la app se reinicia a mitad de proceso, la fila queda sin completar y
--- spring.modulith.events.republish-outstanding-events-on-restart la
--- reintenta en el próximo arranque.
+-- terminó de procesarlo. Si el listener falla, la fila queda sin completar,
+-- visible para diagnóstico manual vía consulta directa a esta tabla, pero
+-- sin reintento automático en esta rebanada (ADR 0013 §2): esta app no
+-- habilita spring.modulith.events.republish-outstanding-events-on-restart
+-- porque, en una arquitectura de una base por tenant, no hay ninguna
+-- consulta sin tenant resuelto que pueda encontrar algo que reintentar.
 --
 -- Vive en la base de cada municipio, no en la de control: todo evento hoy
 -- nace de una acción dentro del portal de un municipio, y una tabla

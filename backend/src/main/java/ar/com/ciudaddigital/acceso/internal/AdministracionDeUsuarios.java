@@ -94,7 +94,10 @@ class AdministracionDeUsuarios {
      */
     private UsuarioCreado eventoDeAlta(UsuarioEntity usuarioCreado) {
         Authentication autenticacion = SecurityContextHolder.getContext().getAuthentication();
-        UsuarioAutenticado actor = (UsuarioAutenticado) autenticacion.getPrincipal();
+        if (!(autenticacion.getPrincipal() instanceof UsuarioAutenticado actor)) {
+            throw new IllegalStateException(
+                    "No hay un usuario autenticado para registrar como actor del alta.");
+        }
 
         return new UsuarioCreado(
                 usuarioCreado.getId(), usuarioCreado.getNombre(), usuarioCreado.getEmail(),
