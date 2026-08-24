@@ -6,11 +6,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import ar.com.ciudaddigital.tenants.internal.AltaDeMunicipio.Administrador;
 import ar.com.ciudaddigital.tenants.internal.AltaDeMunicipio.SolicitudDeAlta;
 import ar.com.ciudaddigital.tenants.internal.AltaDeMunicipio.SolicitudInvalida;
 import ar.com.ciudaddigital.tenants.internal.TenantConfig.Tema;
@@ -19,8 +21,9 @@ import ar.com.ciudaddigital.tenants.internal.TenantConfig.Tema;
  * Alta y estado de los municipios (ADR 0005).
  *
  * <p>Superficie cross-tenant: es la única parte del sistema que ve a todos
- * los municipios a la vez. Está protegida provisoriamente por
- * {@link AdminTokenFilter} hasta que R3 traiga autenticación real.
+ * los municipios a la vez. Protegida por sesión de usuario de plataforma
+ * ({@link ConfiguracionDeSeguridadDePlataforma}, ADR 0010), no por el
+ * token compartido que usaba R2.
  */
 @RestController
 @RequestMapping("/api/admin/municipios")
@@ -45,7 +48,8 @@ class AdministracionDeMunicipiosController {
                 request.direccion(),
                 request.telefono(),
                 request.email(),
-                request.tema()));
+                request.tema(),
+                request.administrador()));
 
         return ResponseEntity.status(HttpStatus.CREATED).body(describir(tenant));
     }
@@ -63,6 +67,48 @@ class AdministracionDeMunicipiosController {
         return repositorio.findAllByOrderBySlugAsc().stream()
                 .map(this::describir)
                 .toList();
+    }
+
+
+    /**
+     * Aplica a cada municipio activo las migraciones que le falten, y
+     * devuelve en qué versión quedó cada uno.
+     *
+     * <p>Con una base por municipio, un release nuevo no se aplica solo:
+     * las bases existentes siguen en la versión anterior hasta que alguien
+     * las migra. Un municipio que falla no interrumpe a los demás, y su
+     * error aparece en el reporte en vez de quedar escondido.
+     */
+    @PostMapping("/migraciones")
+    List<MigracionResponse> migrar() {
+        return repositorio.findAllByOrderBySlugAsc().stream()
+                .filter(tenant -> tenant.getEstado() == EstadoTenant.ACTIVO)
+                .map(this::migrarUno)
+                .toList();
+    }
+
+    private MigracionResponse migrarUno(TenantEntity tenant) {
+        try {
+            return new MigracionResponse(
+                    tenant.getSlug(), migrador.migrar(tenant.getNombreBaseDatos()), null);
+        } catch (RuntimeException e) {
+            return new MigracionResponse(
+                    tenant.getSlug(),
+                    migrador.versionActual(tenant.getNombreBaseDatos()),
+                    e.getMessage());
+        }
+    }
+
+    /**
+     * Crea un administrador en un municipio existente, para el caso en que
+     * el municipio se quedó sin ninguno (ADR 0010).
+     */
+    @PostMapping("/{slug}/administrador")
+    ResponseEntity<Void> agregarAdministrador(@PathVariable String slug,
+            @RequestBody Administrador administrador) {
+
+        alta.agregarAdministrador(slug, administrador);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     private MunicipioResponse describir(TenantEntity tenant) {
@@ -95,7 +141,8 @@ class AdministracionDeMunicipiosController {
             String direccion,
             String telefono,
             String email,
-            Tema tema) {
+            Tema tema,
+            Administrador administrador) {
     }
 
     record MunicipioResponse(
@@ -105,6 +152,9 @@ class AdministracionDeMunicipiosController {
             String estado,
             String nombreBaseDatos,
             String versionDeEsquema) {
+    }
+
+    record MigracionResponse(String slug, String versionDeEsquema, String error) {
     }
 
     record ErrorResponse(String error) {

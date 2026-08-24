@@ -1,0 +1,116 @@
+package ar.com.ciudaddigital.acceso.internal;
+
+import java.io.IOException;
+import java.util.Optional;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import ar.com.ciudaddigital.tenants.TenantContext;
+import ar.com.ciudaddigital.tenants.TenantInfo;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+
+/**
+ * Ata cada sesión al municipio en el que se abrió y mantiene sus permisos
+ * al día (ADR 0010).
+ *
+ * <p>Hace dos cosas que no se pueden delegar en el browser:
+ *
+ * <ol>
+ * <li><strong>Verifica el municipio.</strong> La cookie de sesión se emite
+ * sin atributo {@code Domain}, así que un browser jamás la manda a otro
+ * subdominio. Pero eso vale para un browser: cualquier cliente puede
+ * presentar la cookie donde quiera, y sin esta verificación una sesión de
+ * un municipio abriría datos de otro.</li>
+ * <li><strong>Relee al usuario en cada request.</strong> Si los permisos
+ * quedaran congelados en la sesión, desactivar a alguien o sacarle un rol
+ * no tendría efecto hasta que cerrara sesión — que es justo lo que no se
+ * puede esperar cuando hay que cortarle el acceso a alguien.</li>
+ * </ol>
+ *
+ * <p>El desajuste de municipio es una violación de aislamiento y corta con
+ * 401 en el acto, en cualquier endpoint. Un usuario que dejó de ser válido
+ * —desactivado, sin roles que ya no existen— en cambio no genera una
+ * respuesta de error acá: el contexto de seguridad se limpia y el request
+ * sigue como anónimo, y es cada endpoint el que decide qué hacer con eso
+ * —{@code GET /api/sesion} responde 200 con "no autenticado", el resto
+ * responde 401 por el mecanismo general de Spring Security—. Escribir el
+ * error acá para todos los casos rompería el contrato de
+ * {@code GET /api/sesion} de nunca fallar.
+ *
+ * <p>También descarta cualquier autenticación que no sea de un usuario de
+ * municipio. Esta cadena y la de la API de administración
+ * ({@code tenants.internal.ConfiguracionDeSeguridadDePlataforma}) son
+ * cadenas de Spring Security distintas, pero ambas guardan el contexto de
+ * seguridad en el mismo tipo de sesión HTTP: sin este chequeo, una sesión
+ * de plataforma presentada acá pasaría {@code anyRequest().authenticated()}
+ * igual, porque ese chequeo no distingue de qué tipo es el principal.
+ */
+class SesionDelMunicipioFilter extends OncePerRequestFilter {
+
+    /** Municipio en el que se inició la sesión, guardado al hacer login. */
+    static final String ATRIBUTO_MUNICIPIO = "ciudad.municipio";
+
+    private final AutenticacionDeMunicipio autenticacion;
+
+    SesionDelMunicipioFilter(AutenticacionDeMunicipio autenticacion) {
+        this.autenticacion = autenticacion;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+            FilterChain chain) throws ServletException, IOException {
+
+        Authentication autenticado = SecurityContextHolder.getContext().getAuthentication();
+        UsuarioAutenticado usuario = null;
+        if (autenticado != null) {
+            if (!(autenticado.getPrincipal() instanceof UsuarioAutenticado u)) {
+                SecurityContextHolder.clearContext();
+                chain.doFilter(request, response);
+                return;
+            }
+            usuario = u;
+        }
+
+        HttpSession sesion = request.getSession(false);
+        Object municipioDeLaSesion =
+                sesion == null ? null : sesion.getAttribute(ATRIBUTO_MUNICIPIO);
+
+        if (municipioDeLaSesion == null) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        String municipioDelRequest =
+                TenantContext.actual().map(TenantInfo::slug).orElse(null);
+
+        if (!municipioDeLaSesion.equals(municipioDelRequest)) {
+            cerrar(sesion);
+            RespuestasJson.error(response, HttpStatus.UNAUTHORIZED,
+                    "La sesión no corresponde a este municipio.");
+            return;
+        }
+
+        if (usuario != null) {
+            Optional<UsuarioAutenticado> alDia = autenticacion.refrescar(usuario.id());
+            if (alDia.isEmpty()) {
+                cerrar(sesion);
+            } else {
+                SecurityContextHolder.getContext().setAuthentication(Autenticaciones.de(alDia.get()));
+            }
+        }
+
+        chain.doFilter(request, response);
+    }
+
+    private void cerrar(HttpSession sesion) {
+        SecurityContextHolder.clearContext();
+        sesion.invalidate();
+    }
+}

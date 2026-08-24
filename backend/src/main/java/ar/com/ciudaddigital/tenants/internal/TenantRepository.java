@@ -25,6 +25,8 @@ interface TenantRepository extends Repository<TenantEntity, UUID> {
 
     Optional<TenantEntity> findBySubdominioIgnoreCase(String subdominio);
 
+    Optional<TenantEntity> findBySlugIgnoreCase(String slug);
+
     boolean existsBySlugIgnoreCase(String slug);
 
     boolean existsBySubdominioIgnoreCase(String subdominio);

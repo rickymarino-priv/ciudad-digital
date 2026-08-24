@@ -17,6 +17,13 @@
   --color-texto-tenue: #4a4f57;
   --tipografia: system-ui, -apple-system, 'Segoe UI', sans-serif;
 
+  /*
+   * El error no viene en el tema del municipio: es un color de sistema y
+   * tiene que mantener su contraste sea cual sea la marca. Si lo eligiera
+   * cada municipio, alguno lo dejaría ilegible sobre su propio fondo.
+   */
+  --color-error: #8c1d18;
+
   --ancho-maximo: 60rem;
   --radio: 0.5rem;
   --espacio: 1rem;
@@ -168,4 +175,322 @@ body {
   max-width: var(--ancho-maximo);
   margin: 0 auto;
   padding: calc(var(--espacio) * 3) var(--espacio);
+}
+
+/*
+ * Sesión en el encabezado.
+ */
+.encabezado__sesion {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--espacio);
+  flex-wrap: wrap;
+}
+
+.encabezado__usuario {
+  margin: 0;
+  font-weight: 600;
+}
+
+/*
+ * Botones.
+ *
+ * El alto mínimo no es estético: un objetivo chico es difícil de acertar
+ * con el dedo, con un mouse impreciso o con temblor.
+ */
+.boton {
+  min-height: 2.75rem;
+  padding: 0.5rem 1.25rem;
+  border: 2px solid transparent;
+  border-radius: var(--radio);
+  background-color: var(--color-primario);
+  color: var(--color-primario-contraste);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.boton:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-primario) 85%, black);
+}
+
+.boton:disabled {
+  cursor: not-allowed;
+  /* Se atenúa, pero sin bajar del contraste mínimo: un botón deshabilitado
+     igual tiene que poder leerse. */
+  opacity: 0.7;
+}
+
+.boton--secundario {
+  background-color: transparent;
+  color: var(--color-primario);
+  border-color: currentColor;
+}
+
+.boton--secundario:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-primario) 10%, transparent);
+}
+
+/* Sobre la barra del municipio, que ya está pintada con el color primario. */
+.boton--sobre-primario {
+  background-color: transparent;
+  color: var(--color-primario-contraste);
+  border-color: currentColor;
+}
+
+.boton--sobre-primario:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-primario-contraste) 18%, transparent);
+}
+
+/* Para acciones destructivas, como confirmar el borrado de un rol. Usa el
+   mismo color de sistema que los mensajes de error: no viene del tema del
+   municipio, para que mantenga su contraste sea cual sea la marca. */
+.boton--peligro {
+  background-color: var(--color-error);
+  color: var(--color-primario-contraste);
+}
+
+.boton--peligro:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-error) 85%, black);
+}
+
+/*
+ * Formularios.
+ */
+.formulario {
+  max-width: 26rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espacio);
+  margin-top: calc(var(--espacio) * 1.5);
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+/* La etiqueta arriba y no adentro del campo: el placeholder como etiqueta
+   desaparece justo cuando hace falta, al empezar a escribir. */
+.campo label {
+  font-weight: 600;
+}
+
+.campo input,
+.campo textarea {
+  padding: 0.5rem 0.75rem;
+  border: 2px solid color-mix(in srgb, var(--color-texto) 35%, transparent);
+  border-radius: var(--radio);
+  background-color: var(--color-superficie);
+  color: var(--color-texto);
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+.campo input {
+  min-height: 2.75rem;
+}
+
+.campo textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+.campo input[aria-invalid='true'] {
+  border-color: var(--color-error);
+}
+
+.campo__ayuda {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-texto-tenue);
+}
+
+/* Checkbox suelto que acompaña una etiqueta corta, como "Activo" en una
+   fila de una tabla: no necesita el layout en columna de .campo. */
+.campo-en-linea {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.campo-en-linea input {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.formulario__error {
+  margin: 0;
+  padding: 0.75rem var(--espacio);
+  border-left: 4px solid var(--color-error);
+  background-color: color-mix(in srgb, var(--color-error) 8%, var(--color-superficie));
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+.formulario__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espacio);
+}
+
+/*
+ * Tablas.
+ */
+
+/* Contenedor con scroll propio: sin esto, una tabla ancha empuja el ancho
+   de toda la página y obliga a scrollear en horizontal para leer cualquier
+   cosa. */
+.tabla-contenedor {
+  overflow-x: auto;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--color-superficie);
+  border: 1px solid color-mix(in srgb, var(--color-texto) 12%, transparent);
+  border-radius: var(--radio);
+}
+
+.tabla caption {
+  text-align: left;
+  padding-bottom: 0.5rem;
+  color: var(--color-texto-tenue);
+  font-size: 0.9375rem;
+}
+
+.tabla th,
+.tabla td {
+  text-align: left;
+  padding: 0.75rem var(--espacio);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-texto) 8%, transparent);
+}
+
+.tabla thead th {
+  color: var(--color-texto-tenue);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tabla tbody tr:last-child th,
+.tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/*
+ * Administración: usuarios y roles.
+ */
+
+/* Espacio para el botón u formulario de alta, encima de la lista. */
+.administracion__barra {
+  margin: calc(var(--espacio) * 1.5) 0;
+}
+
+/* Grupo de checkboxes (roles al armar un usuario, permisos al armar un
+   rol). El fieldset/legend nativo es lo que le da a un lector de pantalla
+   el nombre del grupo antes de leer cada opción. */
+.grupo-checkboxes {
+  margin: 0 0 var(--espacio) 0;
+  padding: 0.75rem var(--espacio);
+  border: 2px solid color-mix(in srgb, var(--color-texto) 35%, transparent);
+  border-radius: var(--radio);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.grupo-checkboxes + .grupo-checkboxes {
+  margin-top: calc(var(--espacio) * -0.5);
+}
+
+.grupo-checkboxes legend {
+  padding: 0 0.25rem;
+  font-weight: 600;
+}
+
+.grupo-checkboxes__opcion {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-weight: 400;
+}
+
+.grupo-checkboxes__opcion input {
+  margin-top: 0.2em;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+/* Dentro de una celda de tabla, en modo edición: no hace falta tanto
+   respiro como en un formulario de alta aparte. */
+.grupo-checkboxes--compacto {
+  margin-bottom: 0;
+}
+
+/* Botones de una fila de tabla en modo edición: no necesitan ocupar todo
+   el ancho ni envolver en varias líneas si se puede evitar. */
+.formulario__acciones--compacto {
+  align-items: center;
+}
+
+/* Indicación de que un rol viene de fábrica y no se puede borrar. */
+.badge {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  background-color: color-mix(in srgb, var(--color-primario) 12%, var(--color-superficie));
+  color: var(--color-primario);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.lista-roles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espacio);
+}
+
+.tarjeta-rol {
+  background-color: var(--color-superficie);
+  border: 1px solid color-mix(in srgb, var(--color-texto) 12%, transparent);
+  border-radius: var(--radio);
+  padding: var(--espacio);
+}
+
+.tarjeta-rol__encabezado {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tarjeta-rol__encabezado h3 {
+  margin: 0;
+}
+
+/* Confirmación inline antes de una acción destructiva (borrar un rol):
+   pregunta y botones en la misma línea, navegable por teclado sin abrir
+   ningún diálogo modal. */
+.confirmacion {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.75rem 0 0 0;
+  padding: 0.75rem var(--espacio);
+  border-left: 4px solid var(--color-error);
+  background-color: color-mix(in srgb, var(--color-error) 8%, var(--color-superficie));
+  border-radius: var(--radio);
 }

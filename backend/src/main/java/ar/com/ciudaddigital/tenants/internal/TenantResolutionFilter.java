@@ -27,6 +27,7 @@ class TenantResolutionFilter extends OncePerRequestFilter {
     static final int ORDEN = Integer.MIN_VALUE + 100;
 
     private static final String PREFIJO_API = "/api/";
+    private static final String PREFIJO_ADMIN = "/api/admin/";
 
     private final TenantResolver resolver;
 
@@ -39,7 +40,7 @@ class TenantResolutionFilter extends OncePerRequestFilter {
         String ruta = request.getRequestURI();
         // La API de administración es cross-tenant por definición: opera
         // sobre todos los municipios, así que no se resuelve ninguno.
-        return !ruta.startsWith(PREFIJO_API) || ruta.startsWith(AdminTokenFilter.PREFIJO_ADMIN);
+        return !ruta.startsWith(PREFIJO_API) || ruta.startsWith(PREFIJO_ADMIN);
     }
 
     @Override

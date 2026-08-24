@@ -33,6 +33,21 @@ class AltaDeMunicipio {
 
     private static final String PREFIJO_BASE = "tenant_";
 
+    /**
+     * Forma mínima de un email. No valida que exista: eso solo lo puede
+     * decir un mensaje que llegue, y el motor de notificaciones es de R5.
+     */
+    private static final Pattern EMAIL_VALIDO =
+            Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+
+    /**
+     * Largo mínimo de la contraseña del administrador. La política completa
+     * —recambio, bloqueo por intentos, recuperación— queda pendiente en el
+     * ADR 0010; esto es el piso para que el alta no cree un municipio con
+     * una contraseña trivial.
+     */
+    private static final int LARGO_MINIMO_DE_PASSWORD = 12;
+
     private final TenantRepository repositorio;
     private final CreadorDeBaseDeTenant creador;
     private final MigradorDeTenant migrador;
@@ -67,6 +82,10 @@ class AltaDeMunicipio {
             migrador.migrar(nombreBaseDatos);
             sembrador.sembrarDatosDeContacto(nombreBaseDatos, solicitud.direccion(),
                     solicitud.telefono(), solicitud.email());
+            sembrador.sembrarAdministrador(nombreBaseDatos,
+                    solicitud.administrador().nombre().trim(),
+                    solicitud.administrador().email().trim(),
+                    solicitud.administrador().password());
 
             tenant.cambiarEstado(EstadoTenant.ACTIVO);
             log.info("Municipio {} dado de alta en la base {}", slug, nombreBaseDatos);
@@ -98,6 +117,8 @@ class AltaDeMunicipio {
         if (repositorio.existsBySubdominioIgnoreCase(slug)) {
             throw new SolicitudInvalida("Ya hay un municipio publicado en el subdominio " + slug + ".");
         }
+        validarAdministrador(solicitud.administrador());
+
         if (creador.existe(PREFIJO_BASE + slug)) {
             // Puede pasar si un alta anterior falló después de crear la
             // base: mejor avisar que pisar datos de alguien.
@@ -107,13 +128,66 @@ class AltaDeMunicipio {
         }
     }
 
+
+    /**
+     * Crea un administrador en un municipio que ya existe.
+     *
+     * <p>Es una operación de recuperación, no parte del flujo normal: hace
+     * falta cuando un municipio se queda sin nadie que pueda administrarlo,
+     * y para los municipios que ya estaban dados de alta antes de que
+     * existieran los usuarios (ADR 0010). Vive en la API cross-tenant
+     * porque, por definición, la ejecuta alguien que no puede entrar al
+     * municipio.
+     */
+    void agregarAdministrador(String slug, Administrador administrador) {
+        validarAdministrador(administrador);
+
+        TenantEntity tenant = repositorio.findBySlugIgnoreCase(slug == null ? "" : slug.trim())
+                .orElseThrow(() -> new SolicitudInvalida(
+                        "No hay ningún municipio con el identificador " + slug + "."));
+
+        sembrador.sembrarAdministrador(tenant.getNombreBaseDatos(),
+                administrador.nombre().trim(),
+                administrador.email().trim(),
+                administrador.password());
+    }
+
+    /**
+     * Un municipio no se da de alta sin alguien que pueda entrar: el
+     * administrador es parte de la solicitud, no un paso posterior
+     * (ADR 0010).
+     */
+    private void validarAdministrador(Administrador administrador) {
+        if (administrador == null
+                || administrador.nombre() == null || administrador.nombre().isBlank()) {
+            throw new SolicitudInvalida(
+                    "Hay que indicar el nombre del administrador del municipio.");
+        }
+        if (administrador.email() == null
+                || !EMAIL_VALIDO.matcher(administrador.email().trim()).matches()) {
+            throw new SolicitudInvalida(
+                    "El correo electrónico del administrador del municipio no es válido.");
+        }
+        if (administrador.password() == null
+                || administrador.password().length() < LARGO_MINIMO_DE_PASSWORD) {
+            throw new SolicitudInvalida(
+                    "La contraseña del administrador tiene que tener al menos "
+                            + LARGO_MINIMO_DE_PASSWORD + " caracteres.");
+        }
+    }
+
     record SolicitudDeAlta(
             String slug,
             String nombreMunicipio,
             String direccion,
             String telefono,
             String email,
-            Tema tema) {
+            Tema tema,
+            Administrador administrador) {
+    }
+
+    /** Primer usuario del municipio, con el rol de administrador. */
+    record Administrador(String nombre, String email, String password) {
     }
 
     static class SolicitudInvalida extends RuntimeException {
