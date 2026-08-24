@@ -18,6 +18,8 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
+import ar.com.ciudaddigital.entitlement.CatalogoDeModulos;
+
 /**
  * Cadena de seguridad del portal de municipio (ADR 0010, ADR 0011).
  *
@@ -52,7 +54,8 @@ class ConfiguracionDeSeguridad {
     @Order(2)
     SecurityFilterChain cadenaDeApi(HttpSecurity http,
             @Qualifier("repositorioDeContexto") SecurityContextRepository contexto,
-            AutenticacionDeMunicipio autenticacion) throws Exception {
+            AutenticacionDeMunicipio autenticacion,
+            CatalogoDeModulos catalogoDeModulos) throws Exception {
 
         http
                 .securityMatcher("/api/**")
@@ -72,16 +75,35 @@ class ConfiguracionDeSeguridad {
                 .addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
                 .addFilterBefore(new SesionDelMunicipioFilter(autenticacion),
                         AuthorizationFilter.class)
-                .authorizeHttpRequests(reglas -> reglas
-                        // Marca y datos de contacto del municipio: es lo que
-                        // ve cualquier vecino que entra al portal.
-                        .requestMatchers(HttpMethod.GET, "/api/tenant/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/municipio/**").permitAll()
-                        // Entrar y saber si hay sesión tiene que poder
-                        // hacerse sin sesión.
-                        .requestMatchers(HttpMethod.GET, "/api/sesion").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/sesion").permitAll()
-                        .anyRequest().authenticated())
+                .authorizeHttpRequests(reglas -> {
+                    reglas
+                            // Marca y datos de contacto del municipio: es lo
+                            // que ve cualquier vecino que entra al portal.
+                            .requestMatchers(HttpMethod.GET, "/api/tenant/**").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/municipio/**").permitAll()
+                            // Entrar y saber si hay sesión tiene que poder
+                            // hacerse sin sesión.
+                            .requestMatchers(HttpMethod.GET, "/api/sesion").permitAll()
+                            .requestMatchers(HttpMethod.POST, "/api/sesion").permitAll()
+                            // Catálogo de módulos (ADR 0012 §7): el gating
+                            // por entitlement es lo único que lo protege, no
+                            // la sesión.
+                            .requestMatchers(HttpMethod.GET, "/api/modulos").permitAll();
+
+                    // Rutas de lectura pública que cada módulo declara en su
+                    // propio DescriptorDeModulo (ADR 0012 §1): agregar un
+                    // módulo con una pantalla anónima no toca esta clase,
+                    // que es código de otro módulo. Solo abre GET —lectura—;
+                    // escritura anónima no está contemplada acá y el gating
+                    // por entitlement sigue corriendo antes que esta cadena,
+                    // así que una ruta pública de un módulo no contratado se
+                    // sigue rechazando con 403 MODULO_NO_CONTRATADO.
+                    catalogoDeModulos.catalogo().stream()
+                            .flatMap(descriptor -> descriptor.rutasDeLecturaPublica().stream())
+                            .forEach(ruta -> reglas.requestMatchers(HttpMethod.GET, ruta).permitAll());
+
+                    reglas.anyRequest().authenticated();
+                })
                 .exceptionHandling(errores -> errores
                         .authenticationEntryPoint((request, response, e) -> RespuestasJson.error(
                                 response, HttpStatus.UNAUTHORIZED,

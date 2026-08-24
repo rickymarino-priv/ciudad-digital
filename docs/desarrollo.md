@@ -137,6 +137,80 @@ curl -X POST http://localhost:8080/api/admin/municipios/sanmartin/administrador 
   }'
 ```
 
+## Prender y apagar módulos de un municipio
+
+Qué módulos tiene contratados cada municipio se administra por la API de
+administración (ADR 0012), con la misma sesión de plataforma de arriba. Si
+el municipio ya estaba dado de alta antes de que existiera este mecanismo
+—o antes de que existiera un módulo nuevo cuyo permiso llegó en una
+migración—, primero hay que migrarlo:
+
+```bash
+curl -X POST http://localhost:8080/api/admin/municipios/migraciones \
+  -b /tmp/cookies-admin \
+  -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN /tmp/cookies-admin | cut -f7)"
+```
+
+Ver el catálogo completo de módulos y cuáles tiene prendidos un municipio:
+
+```bash
+curl -b /tmp/cookies-admin http://localhost:8080/api/admin/municipios/sanmartin/modulos
+```
+
+Prender un módulo (acá, `ejemplo`). El `PUT` reemplaza la lista completa,
+así que hay que mandar todos los que tiene que quedar contratados, no solo
+el que se agrega:
+
+```bash
+curl -X PUT http://localhost:8080/api/admin/municipios/sanmartin/modulos \
+  -b /tmp/cookies-admin \
+  -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN /tmp/cookies-admin | cut -f7)" \
+  -H "Content-Type: application/json" \
+  -d '{"modulos": ["ejemplo"]}'
+```
+
+Apagar todo es el mismo `PUT` con la lista vacía, de forma explícita —no
+mandar el campo se rechaza con 400, justamente para que apagar todo sea
+una decisión y no un olvido—:
+
+```bash
+curl -X PUT http://localhost:8080/api/admin/municipios/sanmartin/modulos \
+  -b /tmp/cookies-admin \
+  -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN /tmp/cookies-admin | cut -f7)" \
+  -H "Content-Type: application/json" \
+  -d '{"modulos": []}'
+```
+
+Con el módulo apagado, cualquier request a sus rutas —incluso sin sesión,
+incluso con permiso— se rechaza con 403 y
+`{"codigo":"MODULO_NO_CONTRATADO"}`:
+
+```bash
+curl http://sanmartin.localhost:8080/api/ejemplo/ping
+```
+
+El catálogo completo con el estado para el municipio del portal en el que
+se pida —sin sesión, es lo que pinta la navegación— está en
+`GET /api/modulos`:
+
+```bash
+curl http://sanmartin.localhost:8080/api/modulos
+```
+
+### Verlo en el portal
+
+El portal pide el catálogo una vez, al arrancar, así que después de prender
+o apagar un módulo hay que **recargar la página** para que la navegación se
+rearme.
+
+Con el módulo prendido en San Martín y apagado en Morón, en
+<http://sanmartin.localhost:5173> aparece "Módulo de ejemplo" en la
+navegación y en <http://moron.localhost:5173> no. Entrando con un usuario
+del municipio, la sección "Módulos" del portal muestra el catálogo completo
+con su estado, y en los no contratados ofrece abrir la pantalla igual: se
+abre, y la API rechaza el pedido. Eso es lo que hace visible que esconder
+el módulo en el frontend es comodidad, y el enforcement está en el backend.
+
 ## Ver los portales
 
 El municipio se resuelve por subdominio (ADR 0004), así que **no** se entra

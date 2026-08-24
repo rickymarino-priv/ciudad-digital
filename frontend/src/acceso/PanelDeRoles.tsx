@@ -7,6 +7,7 @@ import {
   type RefObject,
 } from 'react'
 
+import { useModulos } from '../modulos/useModulos'
 import { enviar, pedir } from './api'
 
 type Permiso = {
@@ -60,11 +61,18 @@ function CamposDePermisos({
   seleccionados,
   onAlternar,
   primerCampoRef,
+  modulosNoContratados,
 }: {
   areas: AreaDePermisos[]
   seleccionados: Set<string>
   onAlternar: (codigo: string) => void
   primerCampoRef?: RefObject<HTMLInputElement | null>
+  /**
+   * Códigos de módulo del catálogo que este municipio no tiene contratado
+   * (ADR 0012 §9). Los permisos de plataforma base (`usuarios`, `roles`)
+   * nunca están acá, porque no figuran en el catálogo de módulos.
+   */
+  modulosNoContratados: Set<string>
 }) {
   // El primer checkbox de todos (el del primer permiso de la primera área
   // que tenga alguno) es el que recibe el foco al abrir el formulario.
@@ -87,6 +95,11 @@ function CamposDePermisos({
                 <span>
                   <strong>{permiso.codigo}</strong>
                   {permiso.descripcion ? ` — ${permiso.descripcion}` : ''}
+                  {/* Se muestra, no se oculta: un rol se puede preparar
+                      antes de contratar el módulo (ADR 0012 §9). */}
+                  {modulosNoContratados.has(permiso.modulo) && (
+                    <span className="badge badge--atencion"> Módulo no contratado</span>
+                  )}
                 </span>
               </label>
             )
@@ -107,6 +120,19 @@ function CamposDePermisos({
 export function PanelDeRoles({ puedeAdministrar }: Props) {
   const [estado, setEstado] = useState<EstadoRoles>({ estado: 'cargando' })
   const [catalogo, setCatalogo] = useState<EstadoCatalogo>({ estado: 'cargando' })
+
+  // Catálogo de módulos, para etiquetar los permisos de un módulo que este
+  // municipio no tiene contratado (ADR 0012 §9). Mientras no cargó, no se
+  // etiqueta nada: el conjunto queda vacío.
+  const catalogoDeModulos = useModulos()
+  const modulosNoContratados =
+    catalogoDeModulos.estado === 'listo'
+      ? new Set(
+          catalogoDeModulos.modulos
+            .filter((modulo) => !modulo.habilitado)
+            .map((modulo) => modulo.codigo),
+        )
+      : new Set<string>()
 
   const vigente = useRef(true)
   useEffect(() => {
@@ -454,6 +480,7 @@ export function PanelDeRoles({ puedeAdministrar }: Props) {
                   areas={catalogo.areas}
                   seleccionados={permisosNuevo}
                   onAlternar={alternarPermisoNuevo}
+                  modulosNoContratados={modulosNoContratados}
                 />
               )}
 
@@ -527,6 +554,7 @@ export function PanelDeRoles({ puedeAdministrar }: Props) {
                           areas={catalogo.areas}
                           seleccionados={rolEnEdicion.permisos}
                           onAlternar={alternarPermisoEdicion}
+                          modulosNoContratados={modulosNoContratados}
                         />
                       )}
 
@@ -566,7 +594,22 @@ export function PanelDeRoles({ puedeAdministrar }: Props) {
                       <p>
                         <strong>Permisos:</strong>{' '}
                         {rol.permisos.length > 0
-                          ? rol.permisos.map((permiso) => permiso.codigo).join(', ')
+                          ? rol.permisos.map((permiso, indice) => (
+                              <span key={permiso.codigo}>
+                                {indice > 0 && ', '}
+                                {permiso.codigo}
+                                {/* Se muestra, no se oculta: un módulo dado
+                                    de baja no hace desaparecer sin
+                                    explicación los permisos ya asignados
+                                    (ADR 0012 §9). */}
+                                {modulosNoContratados.has(permiso.modulo) && (
+                                  <span className="badge badge--atencion">
+                                    {' '}
+                                    Módulo no contratado
+                                  </span>
+                                )}
+                              </span>
+                            ))
                           : 'Sin permisos asignados'}
                       </p>
 

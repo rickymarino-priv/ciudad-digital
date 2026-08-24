@@ -8,10 +8,12 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import ar.com.ciudaddigital.tenants.internal.AdministracionDeModulos.ModuloDeMunicipio;
 import ar.com.ciudaddigital.tenants.internal.AltaDeMunicipio.Administrador;
 import ar.com.ciudaddigital.tenants.internal.AltaDeMunicipio.SolicitudDeAlta;
 import ar.com.ciudaddigital.tenants.internal.AltaDeMunicipio.SolicitudInvalida;
@@ -32,12 +34,14 @@ class AdministracionDeMunicipiosController {
     private final AltaDeMunicipio alta;
     private final TenantRepository repositorio;
     private final MigradorDeTenant migrador;
+    private final AdministracionDeModulos administracionDeModulos;
 
     AdministracionDeMunicipiosController(AltaDeMunicipio alta, TenantRepository repositorio,
-            MigradorDeTenant migrador) {
+            MigradorDeTenant migrador, AdministracionDeModulos administracionDeModulos) {
         this.alta = alta;
         this.repositorio = repositorio;
         this.migrador = migrador;
+        this.administracionDeModulos = administracionDeModulos;
     }
 
     @PostMapping
@@ -49,7 +53,8 @@ class AdministracionDeMunicipiosController {
                 request.telefono(),
                 request.email(),
                 request.tema(),
-                request.administrador()));
+                request.administrador(),
+                request.modulos()));
 
         return ResponseEntity.status(HttpStatus.CREATED).body(describir(tenant));
     }
@@ -111,6 +116,42 @@ class AdministracionDeMunicipiosController {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
+    /**
+     * Módulos contratados de un municipio, con el estado de cada uno del
+     * catálogo (ADR 0012 §8). Cross-tenant y de plataforma, como el resto
+     * de este controller: prender o apagar un módulo es una decisión
+     * comercial del proveedor, no del municipio.
+     */
+    @GetMapping("/{slug}/modulos")
+    ModulosDeMunicipioResponse modulos(@PathVariable String slug) {
+        return describirModulos(administracionDeModulos.municipio(slug));
+    }
+
+    /**
+     * Reemplaza la lista completa de módulos habilitados. Un código
+     * desconocido rechaza la solicitud entera sin persistir nada; para
+     * apagar todos los módulos hay que mandar la lista vacía de forma
+     * explícita, {@code null} o ausente no cuenta como "apagar todo".
+     */
+    @PutMapping("/{slug}/modulos")
+    ModulosDeMunicipioResponse actualizarModulos(@PathVariable String slug,
+            @RequestBody(required = false) ModulosRequest request) {
+
+        if (request == null || request.modulos() == null) {
+            throw new SolicitudInvalida(
+                    "Hay que indicar la lista de módulos; mandá una lista vacía para apagarlos "
+                            + "todos.");
+        }
+
+        TenantEntity tenant = administracionDeModulos.reemplazarModulos(slug, request.modulos());
+        return describirModulos(tenant);
+    }
+
+    private ModulosDeMunicipioResponse describirModulos(TenantEntity tenant) {
+        return new ModulosDeMunicipioResponse(
+                tenant.getSlug(), administracionDeModulos.describir(tenant));
+    }
+
     private MunicipioResponse describir(TenantEntity tenant) {
         String version = tenant.getEstado() == EstadoTenant.ACTIVO
                 ? migrador.versionActual(tenant.getNombreBaseDatos())
@@ -142,7 +183,8 @@ class AdministracionDeMunicipiosController {
             String telefono,
             String email,
             Tema tema,
-            Administrador administrador) {
+            Administrador administrador,
+            List<String> modulos) {
     }
 
     record MunicipioResponse(
@@ -155,6 +197,12 @@ class AdministracionDeMunicipiosController {
     }
 
     record MigracionResponse(String slug, String versionDeEsquema, String error) {
+    }
+
+    record ModulosRequest(List<String> modulos) {
+    }
+
+    record ModulosDeMunicipioResponse(String slug, List<ModuloDeMunicipio> modulos) {
     }
 
     record ErrorResponse(String error) {

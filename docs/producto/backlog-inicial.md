@@ -19,9 +19,9 @@ diseñe cada fase.
 | CD-7 | Epic Fase 6 — Áreas de imagen y control de gestión |
 | CD-8 | Epic Fase 7 — Inteligencia artificial |
 | CD-9 | R1 · Dos municipios, dos marcas — **terminada** |
-| CD-10 | R2 · Un municipio se da de alta desde cero |
-| CD-11 | R3 · Un usuario entra a su municipio |
-| CD-12 | R4 · Un módulo se prende y se apaga |
+| CD-10 | R2 · Un municipio se da de alta desde cero — **terminada** |
+| CD-11 | R3 · Un usuario entra a su municipio — **terminada** |
+| CD-12 | R4 · Un módulo se prende y se apaga — **terminada** |
 | CD-13 | R5 · Algo pasa y queda registrado |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
@@ -100,11 +100,19 @@ Incluye:
 desaparece de la navegación y que la API lo rechaza.
 
 Incluye:
-- Entitlement leído de `config.modulos_habilitados`.
+- Entitlement leído de la lista de módulos habilitados en `config`
+  ([ADR 0007](../arquitectura/decisiones/0007-modelo-de-datos-del-tenant.md)).
 - Interceptor de gating en backend que rechaza requests a módulos no
   contratados
-  ([ADR 0009](../arquitectura/decisiones/0009-modelo-comercial-y-entitlement.md)).
+  ([ADR 0009](../arquitectura/decisiones/0009-modelo-comercial-y-entitlement.md)),
+  con el mecanismo de declaración de módulos y gating por prefijo de ruta
+  del [ADR 0012](../arquitectura/decisiones/0012-declaracion-de-modulos-y-gating-por-ruta.md).
 - Navegación del frontend construida a partir de los módulos habilitados.
+- Módulo `ejemplo` como sujeto de prueba del mecanismo: no es funcionalidad
+  de producto y se elimina cuando el primer módulo real de Fase 1 pueda
+  ocupar su lugar.
+- **Test de aislamiento**: un municipio no lee ni modifica los módulos
+  contratados de otro, y prender un módulo en uno no lo prende en el resto.
 
 ### R5 · Algo pasa y queda registrado
 

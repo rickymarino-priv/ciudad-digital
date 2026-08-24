@@ -89,6 +89,17 @@ El entitlement está desacoplado del estado de pago: un módulo se apaga por
 fin de contrato (decisión manual), nunca automáticamente por una factura
 atrasada.
 
+Cómo se implementa ([ADR 0012](decisiones/0012-declaracion-de-modulos-y-gating-por-ruta.md)):
+cada módulo funcional publica un descriptor con su código comercial y sus
+prefijos de API, y un módulo transversal `entitlement` —del que dependen
+los demás, nunca al revés— rechaza por prefijo de ruta antes de la cadena
+de seguridad, lo que garantiza el orden "entitlement primero, permiso
+después" del [ADR 0011](decisiones/0011-autorizacion-por-roles-con-permisos-granulares.md).
+Lo que no pertenece a ningún módulo declarado es canon base y no se gatea:
+la plataforma no es apagable. Prender y apagar módulos es una operación de
+la API de administración cross-tenant; el portal del municipio no tiene
+—ni debe tener— superficie para editar su propio entitlement.
+
 ## 7. Modelo de datos del tenant
 
 Modelo híbrido en la base de control
