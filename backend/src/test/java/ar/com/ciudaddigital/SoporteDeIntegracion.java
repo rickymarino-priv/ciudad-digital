@@ -26,6 +26,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import com.icegreen.greenmail.util.GreenMail;
+import com.icegreen.greenmail.util.ServerSetup;
+
 /**
  * Base de los tests de integración: levanta un Postgres real y apunta ahí
  * tanto la base de control como las bases de municipio.
@@ -57,8 +60,20 @@ public abstract class SoporteDeIntegracion {
     private static final PostgreSQLContainer POSTGRES =
             new PostgreSQLContainer("postgres:16-alpine");
 
+    /**
+     * Servidor SMTP falso, embebido en el proceso de test, para el módulo
+     * {@code notificaciones} (ADR 0013 §3): los tests no pueden depender de
+     * un servidor real en la red, igual que Postgres de arriba se levanta
+     * en un contenedor propio en vez de contra una base compartida.
+     * Puerto 0: que el sistema operativo asigne uno libre, igual criterio
+     * que el resto de esta clase usa puertos mapeados dinámicamente.
+     */
+    protected static final GreenMail SERVIDOR_SMTP_FALSO =
+            new GreenMail(new ServerSetup(0, "localhost", ServerSetup.PROTOCOL_SMTP));
+
     static {
         POSTGRES.start();
+        SERVIDOR_SMTP_FALSO.start();
     }
 
     @Autowired
@@ -69,6 +84,9 @@ public abstract class SoporteDeIntegracion {
         registro.add("ciudad.control.url", POSTGRES::getJdbcUrl);
         registro.add("ciudad.control.usuario", POSTGRES::getUsername);
         registro.add("ciudad.control.password", POSTGRES::getPassword);
+
+        registro.add("spring.mail.host", () -> "localhost");
+        registro.add("spring.mail.port", () -> SERVIDOR_SMTP_FALSO.getSmtp().getPort());
 
         registro.add("ciudad.tenants.servidor", SoporteDeIntegracion::servidorDeTenants);
         registro.add("ciudad.tenants.usuario", POSTGRES::getUsername);
