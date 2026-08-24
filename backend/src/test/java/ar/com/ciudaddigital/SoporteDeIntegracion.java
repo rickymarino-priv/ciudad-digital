@@ -36,7 +36,10 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @AutoConfigureMockMvc
 public abstract class SoporteDeIntegracion {
 
-    protected static final String TOKEN_ADMIN = "token-de-prueba";
+    /** Credenciales del usuario de plataforma sembrado al arrancar (ADR 0010). */
+    protected static final String PLATAFORMA_NOMBRE = "Administrador de plataforma de prueba";
+    protected static final String PLATAFORMA_EMAIL = "plataforma@prueba.local";
+    protected static final String PLATAFORMA_PASSWORD = "password-de-plataforma-de-prueba";
 
     /**
      * Contraseña del administrador que se siembra en cada municipio de
@@ -70,11 +73,30 @@ public abstract class SoporteDeIntegracion {
         registro.add("ciudad.tenants.base-de-mantenimiento", () -> "postgres");
         registro.add("ciudad.tenants.tamano-de-pool", () -> 2);
 
-        registro.add("ciudad.admin.token", () -> TOKEN_ADMIN);
+        registro.add("ciudad.plataforma.admin-inicial.nombre", () -> PLATAFORMA_NOMBRE);
+        registro.add("ciudad.plataforma.admin-inicial.email", () -> PLATAFORMA_EMAIL);
+        registro.add("ciudad.plataforma.admin-inicial.password", () -> PLATAFORMA_PASSWORD);
     }
 
     private static String servidorDeTenants() {
         return "jdbc:postgresql://" + POSTGRES.getHost() + ":" + POSTGRES.getMappedPort(5432) + "/";
+    }
+
+    /**
+     * Abre una sesión como el usuario de plataforma sembrado al arrancar
+     * (ADR 0010), para operar la API de administración.
+     */
+    protected MockHttpSession iniciarSesionDePlataforma() throws Exception {
+        MvcResult resultado = mvc.perform(post("/api/admin/sesion")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"email":"%s","password":"%s"}"""
+                        .formatted(PLATAFORMA_EMAIL, PLATAFORMA_PASSWORD)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        return (MockHttpSession) resultado.getRequest().getSession(false);
     }
 
     /**
@@ -87,7 +109,9 @@ public abstract class SoporteDeIntegracion {
     protected void asegurarMunicipio(String slug, String nombre, String colorPrimario)
             throws Exception {
 
-        String listado = mvc.perform(get("/api/admin/municipios").header("X-Admin-Token", TOKEN_ADMIN))
+        MockHttpSession sesionDePlataforma = iniciarSesionDePlataforma();
+
+        String listado = mvc.perform(get("/api/admin/municipios").session(sesionDePlataforma))
                 .andReturn().getResponse().getContentAsString();
 
         if (listado.contains("\"slug\":\"" + slug + "\"")) {
@@ -123,7 +147,8 @@ public abstract class SoporteDeIntegracion {
                         colorPrimario);
 
         mvc.perform(post("/api/admin/municipios")
-                .header("X-Admin-Token", TOKEN_ADMIN)
+                .session(sesionDePlataforma)
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(cuerpo))
                 .andExpect(result -> {

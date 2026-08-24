@@ -21,8 +21,9 @@ import ar.com.ciudaddigital.tenants.internal.TenantConfig.Tema;
  * Alta y estado de los municipios (ADR 0005).
  *
  * <p>Superficie cross-tenant: es la única parte del sistema que ve a todos
- * los municipios a la vez. Está protegida provisoriamente por
- * {@link AdminTokenFilter} hasta que R3 traiga autenticación real.
+ * los municipios a la vez. Protegida por sesión de usuario de plataforma
+ * ({@link ConfiguracionDeSeguridadDePlataforma}, ADR 0010), no por el
+ * token compartido que usaba R2.
  */
 @RestController
 @RequestMapping("/api/admin/municipios")

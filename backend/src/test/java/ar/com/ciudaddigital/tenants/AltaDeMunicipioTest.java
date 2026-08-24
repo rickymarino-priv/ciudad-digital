@@ -2,6 +2,7 @@ package ar.com.ciudaddigital.tenants;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpSession;
 
 import ar.com.ciudaddigital.SoporteDeIntegracion;
 
@@ -32,7 +34,7 @@ class AltaDeMunicipioTest extends SoporteDeIntegracion {
     void elAltaDejaElMunicipioActivo() throws Exception {
         asegurarMunicipio("tandil", "Tandil", "#5A2D82");
 
-        mvc.perform(get("/api/admin/municipios").header("X-Admin-Token", TOKEN_ADMIN))
+        mvc.perform(get("/api/admin/municipios").session(iniciarSesionDePlataforma()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.slug=='tandil')].estado").value("ACTIVO"))
                 .andExpect(jsonPath("$[?(@.slug=='tandil')].nombreBaseDatos").value("tenant_tandil"))
@@ -71,7 +73,8 @@ class AltaDeMunicipioTest extends SoporteDeIntegracion {
     @DisplayName("no se puede dar de alta dos veces el mismo municipio")
     void elSlugNoSePuedeRepetir() throws Exception {
         mvc.perform(post("/api/admin/municipios")
-                .header("X-Admin-Token", TOKEN_ADMIN)
+                .session(iniciarSesionDePlataforma())
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"slug":"sanmartin","nombreMunicipio":"Otro San Martín",
@@ -83,7 +86,8 @@ class AltaDeMunicipioTest extends SoporteDeIntegracion {
     @DisplayName("un slug con caracteres peligrosos se rechaza antes de tocar la base")
     void elSlugSeValida() throws Exception {
         mvc.perform(post("/api/admin/municipios")
-                .header("X-Admin-Token", TOKEN_ADMIN)
+                .session(iniciarSesionDePlataforma())
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"slug":"ma\\"; drop database postgres; --","nombreMunicipio":"Malicioso",
@@ -92,12 +96,22 @@ class AltaDeMunicipioTest extends SoporteDeIntegracion {
     }
 
     @Test
-    @DisplayName("la API de administración exige el token")
+    @DisplayName("la API de administración exige sesión de usuario de plataforma")
     void laApiDeAdministracionEstaProtegida() throws Exception {
         mvc.perform(get("/api/admin/municipios"))
                 .andExpect(status().isUnauthorized());
 
-        mvc.perform(get("/api/admin/municipios").header("X-Admin-Token", "token-equivocado"))
+        MockHttpSession sesionSinLoguear = new MockHttpSession();
+        mvc.perform(get("/api/admin/municipios").session(sesionSinLoguear))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("las credenciales de un municipio no sirven para operar la API de administración")
+    void lasCredencialesDeMunicipioNoSonDePlataforma() throws Exception {
+        MockHttpSession sesionDeMunicipio = iniciarSesionDeAdministrador("sanmartin");
+
+        mvc.perform(get("/api/admin/municipios").session(sesionDeMunicipio))
                 .andExpect(status().isUnauthorized());
     }
 

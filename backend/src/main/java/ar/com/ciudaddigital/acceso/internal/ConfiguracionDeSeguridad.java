@@ -1,7 +1,9 @@
 package ar.com.ciudaddigital.acceso.internal;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -17,19 +19,21 @@ import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 /**
- * Cadena de seguridad de la API (ADR 0010, ADR 0011).
+ * Cadena de seguridad del portal de municipio (ADR 0010, ADR 0011).
  *
  * <p>La sesión es server-side y viaja en una cookie {@code HttpOnly}
  * host-only. Nada de esto elige municipio: para cuando la cadena corre, el
  * tenant ya fue resuelto por el {@code Host}, y de atar la sesión a ese
  * municipio se encarga {@link SesionDelMunicipioFilter}.
+ *
+ * <p>{@code /api/admin/**} no pasa por acá: tiene su propia cadena en
+ * {@code tenants.internal.ConfiguracionDeSeguridadDePlataforma}, con
+ * {@code @Order} menor para que se evalúe primero.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
 @EnableMethodSecurity
 class ConfiguracionDeSeguridad {
-
-    private static final String API_ADMIN = "/api/admin/**";
 
     /**
      * Dónde vive el contexto de seguridad entre requests.
@@ -39,13 +43,15 @@ class ConfiguracionDeSeguridad {
      * configuración distinta, el login "andaría" y la sesión no existiría
      * en el request siguiente.
      */
-    @Bean
+    @Bean("repositorioDeContexto")
     SecurityContextRepository repositorioDeContexto() {
         return new HttpSessionSecurityContextRepository();
     }
 
     @Bean
-    SecurityFilterChain cadenaDeApi(HttpSecurity http, SecurityContextRepository contexto,
+    @Order(2)
+    SecurityFilterChain cadenaDeApi(HttpSecurity http,
+            @Qualifier("repositorioDeContexto") SecurityContextRepository contexto,
             AutenticacionDeMunicipio autenticacion) throws Exception {
 
         http
@@ -62,17 +68,11 @@ class ConfiguracionDeSeguridad {
                         // Sin XOR por request: el frontend manda tal cual el
                         // valor de la cookie, que es lo que hace que este
                         // esquema sea usable desde una SPA.
-                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                        // La API de administración no la usa un browser con
-                        // cookies, así que no hay CSRF que prevenir ahí.
-                        .ignoringRequestMatchers(API_ADMIN))
+                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
                 .addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
                 .addFilterBefore(new SesionDelMunicipioFilter(autenticacion),
                         AuthorizationFilter.class)
                 .authorizeHttpRequests(reglas -> reglas
-                        // Protegida por su propio token hasta que llegue el
-                        // usuario de plataforma.
-                        .requestMatchers(API_ADMIN).permitAll()
                         // Marca y datos de contacto del municipio: es lo que
                         // ve cualquier vecino que entra al portal.
                         .requestMatchers(HttpMethod.GET, "/api/tenant/**").permitAll()

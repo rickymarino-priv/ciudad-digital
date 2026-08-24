@@ -1,12 +1,10 @@
-package ar.com.ciudaddigital.acceso.internal;
-
-import java.util.List;
+package ar.com.ciudaddigital.tenants.internal;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -17,27 +15,26 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import ar.com.ciudaddigital.tenants.TenantContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
 /**
- * Entrar y salir del portal del municipio (ADR 0010).
+ * Entrar y salir de la API de administración (ADR 0010).
  *
- * <p>La sesión se abre siempre en el municipio del {@code Host} del
- * request: no hay forma de pedir sesión en otro, porque el municipio no es
- * un parámetro que el cliente mande.
+ * <p>Reemplaza el token compartido {@code ciudad.admin.token} de R2: un
+ * token no identifica a nadie, un usuario de plataforma sí.
  */
 @RestController
-@RequestMapping("/api/sesion")
-class SesionController {
+@RequestMapping("/api/admin/sesion")
+class SesionDePlataformaController {
 
-    private final AutenticacionDeMunicipio autenticacion;
+    private final AutenticacionDePlataforma autenticacion;
     private final SecurityContextRepository repositorioDeContexto;
 
-    SesionController(AutenticacionDeMunicipio autenticacion,
-            @Qualifier("repositorioDeContexto") SecurityContextRepository repositorioDeContexto) {
+    SesionDePlataformaController(
+            AutenticacionDePlataforma autenticacion,
+            @Qualifier("repositorioDeContextoDePlataforma") SecurityContextRepository repositorioDeContexto) {
         this.autenticacion = autenticacion;
         this.repositorioDeContexto = repositorioDeContexto;
     }
@@ -46,35 +43,24 @@ class SesionController {
     SesionResponse iniciar(@RequestBody CredencialesRequest credenciales,
             HttpServletRequest request, HttpServletResponse response) {
 
-        UsuarioAutenticado usuario =
+        UsuarioPlataformaAutenticado usuario =
                 autenticacion.autenticar(credenciales.email(), credenciales.password());
 
-        // Id de sesión nuevo después de autenticar: si alguien logró fijar
-        // el id antes del login, a partir de acá el que tiene ya no sirve.
         HttpSession sesion = request.getSession(true);
         request.changeSessionId();
-        sesion.setAttribute(SesionDelMunicipioFilter.ATRIBUTO_MUNICIPIO,
-                TenantContext.requerido().slug());
 
         SecurityContext contexto = SecurityContextHolder.createEmptyContext();
-        contexto.setAuthentication(Autenticaciones.de(usuario));
+        contexto.setAuthentication(AutenticacionesDePlataforma.de(usuario));
         SecurityContextHolder.setContext(contexto);
         repositorioDeContexto.saveContext(contexto, request, response);
 
         return SesionResponse.de(usuario);
     }
 
-    /**
-     * Con quién está abierta la sesión, si hay alguna.
-     *
-     * <p>Responde 200 aunque no haya sesión: el frontend llama a esto al
-     * arrancar para saber qué pantalla mostrar, y "no hay nadie" no es un
-     * error.
-     */
     @GetMapping
     SesionResponse actual(Authentication autenticado) {
         if (autenticado == null
-                || !(autenticado.getPrincipal() instanceof UsuarioAutenticado usuario)) {
+                || !(autenticado.getPrincipal() instanceof UsuarioPlataformaAutenticado usuario)) {
             return SesionResponse.anonima();
         }
         return SesionResponse.de(usuario);
@@ -90,10 +76,9 @@ class SesionController {
         return ResponseEntity.noContent().build();
     }
 
-    @ExceptionHandler(CredencialesInvalidas.class)
-    ResponseEntity<ErrorResponse> credencialesInvalidas(CredencialesInvalidas e) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(new ErrorResponse(e.getMessage()));
+    @ExceptionHandler(CredencialesDePlataformaInvalidas.class)
+    ResponseEntity<ErrorResponse> credencialesInvalidas(CredencialesDePlataformaInvalidas e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse(e.getMessage()));
     }
 
     record CredencialesRequest(String email, String password) {
@@ -105,16 +90,13 @@ class SesionController {
             return new SesionResponse(false, null);
         }
 
-        static SesionResponse de(UsuarioAutenticado usuario) {
+        static SesionResponse de(UsuarioPlataformaAutenticado usuario) {
             return new SesionResponse(true, new UsuarioResponse(
-                    usuario.id(),
-                    usuario.nombre(),
-                    usuario.email(),
-                    List.copyOf(usuario.permisos())));
+                    usuario.id(), usuario.nombre(), usuario.email()));
         }
     }
 
-    record UsuarioResponse(Long id, String nombre, String email, List<String> permisos) {
+    record UsuarioResponse(Long id, String nombre, String email) {
     }
 
     record ErrorResponse(String error) {

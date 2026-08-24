@@ -35,16 +35,45 @@ Frontend, en <http://localhost:5173>:
 cd frontend && npm install && npm run dev
 ```
 
+## Operar la API de administración
+
+El alta de municipios es una superficie cross-tenant, así que va por la
+API de administración (`/api/admin/**`), protegida por sesión de
+**usuario de plataforma** —una identidad separada de los usuarios de
+cada municipio, guardada en la base de control
+([ADR 0010](arquitectura/decisiones/0010-autenticacion-por-sesion-scopeada-al-tenant.md))—.
+No hay alta de usuarios de plataforma por API: al arrancar por primera
+vez, el backend siembra uno solo si todavía no hay ninguno, con los
+datos de `ciudad.plataforma.admin-inicial.*` en `application.properties`
+(cambiar la contraseña de arranque antes de ir a producción). El resto se
+crean a mano en la base.
+
+Como con el portal de municipio, la sesión de plataforma necesita el
+token CSRF que el backend deja en una cookie:
+
+```bash
+curl -c /tmp/cookies-admin -b /tmp/cookies-admin http://localhost:8080/api/admin/sesion
+
+curl -c /tmp/cookies-admin -b /tmp/cookies-admin \
+  -X POST http://localhost:8080/api/admin/sesion \
+  -H "Content-Type: application/json" \
+  -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN /tmp/cookies-admin | cut -f7)" \
+  -d '{"email": "admin@ciudaddigital.local", "password": "cambiar-en-produccion"}'
+```
+
+De acá en adelante, cada request a `/api/admin/**` va con
+`-b /tmp/cookies-admin` y, si escribe algo, con la cabecera
+`X-XSRF-TOKEN` de arriba.
+
 ## Dar de alta un municipio
 
 El alta crea la base de datos del municipio, la migra y la siembra —datos
-de contacto y **usuario administrador**—. Es una operación cross-tenant,
-así que va por la API de administración, protegida con el token de
-`ciudad.admin.token`:
+de contacto y **usuario administrador**—.
 
 ```bash
 curl -X POST http://localhost:8080/api/admin/municipios \
-  -H "X-Admin-Token: cambiar-en-r3" \
+  -b /tmp/cookies-admin \
+  -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN /tmp/cookies-admin | cut -f7)" \
   -H "Content-Type: application/json" \
   -d '{
     "slug": "sanmartin",
@@ -75,12 +104,8 @@ Estado de todos los municipios, con la versión de esquema que tiene
 aplicada la base de cada uno:
 
 ```bash
-curl http://localhost:8080/api/admin/municipios -H "X-Admin-Token: cambiar-en-r3"
+curl -b /tmp/cookies-admin http://localhost:8080/api/admin/municipios
 ```
-
-El token es una medida provisoria: se reemplaza por un usuario de
-plataforma dentro de R3. Un token compartido no identifica a nadie, así que
-no sirve para auditar quién dio de alta un municipio.
 
 ### Migrar los municipios que ya existen
 
@@ -89,7 +114,8 @@ existentes se quedan en la versión anterior hasta que alguien las migra.
 
 ```bash
 curl -X POST http://localhost:8080/api/admin/municipios/migraciones \
-  -H "X-Admin-Token: cambiar-en-r3"
+  -b /tmp/cookies-admin \
+  -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN /tmp/cookies-admin | cut -f7)"
 ```
 
 Devuelve la versión en la que quedó cada municipio, y el error de los que
@@ -97,12 +123,12 @@ hayan fallado —sin interrumpir a los demás—.
 
 ### Recuperar el acceso a un municipio
 
-Los municipios dados de alta antes de R3 no tienen ningún usuario, y
-cualquier municipio puede quedarse sin administrador. Para esos casos:
+Cualquier municipio puede quedarse sin administrador. Para esos casos:
 
 ```bash
 curl -X POST http://localhost:8080/api/admin/municipios/sanmartin/administrador \
-  -H "X-Admin-Token: cambiar-en-r3" \
+  -b /tmp/cookies-admin \
+  -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN /tmp/cookies-admin | cut -f7)" \
   -H "Content-Type: application/json" \
   -d '{
     "nombre": "Ana Gómez",

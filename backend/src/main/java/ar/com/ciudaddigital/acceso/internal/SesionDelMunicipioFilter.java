@@ -43,13 +43,19 @@ import jakarta.servlet.http.HttpSession;
  * responde 401 por el mecanismo general de Spring Security—. Escribir el
  * error acá para todos los casos rompería el contrato de
  * {@code GET /api/sesion} de nunca fallar.
+ *
+ * <p>También descarta cualquier autenticación que no sea de un usuario de
+ * municipio. Esta cadena y la de la API de administración
+ * ({@code tenants.internal.ConfiguracionDeSeguridadDePlataforma}) son
+ * cadenas de Spring Security distintas, pero ambas guardan el contexto de
+ * seguridad en el mismo tipo de sesión HTTP: sin este chequeo, una sesión
+ * de plataforma presentada acá pasaría {@code anyRequest().authenticated()}
+ * igual, porque ese chequeo no distingue de qué tipo es el principal.
  */
 class SesionDelMunicipioFilter extends OncePerRequestFilter {
 
     /** Municipio en el que se inició la sesión, guardado al hacer login. */
     static final String ATRIBUTO_MUNICIPIO = "ciudad.municipio";
-
-    private static final String PREFIJO_ADMIN = "/api/admin/";
 
     private final AutenticacionDeMunicipio autenticacion;
 
@@ -58,15 +64,19 @@ class SesionDelMunicipioFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        // La API de administración es cross-tenant: no tiene municipio
-        // resuelto contra el cual comparar.
-        return request.getRequestURI().startsWith(PREFIJO_ADMIN);
-    }
-
-    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain chain) throws ServletException, IOException {
+
+        Authentication autenticado = SecurityContextHolder.getContext().getAuthentication();
+        UsuarioAutenticado usuario = null;
+        if (autenticado != null) {
+            if (!(autenticado.getPrincipal() instanceof UsuarioAutenticado u)) {
+                SecurityContextHolder.clearContext();
+                chain.doFilter(request, response);
+                return;
+            }
+            usuario = u;
+        }
 
         HttpSession sesion = request.getSession(false);
         Object municipioDeLaSesion =
@@ -87,10 +97,7 @@ class SesionDelMunicipioFilter extends OncePerRequestFilter {
             return;
         }
 
-        Authentication autenticado = SecurityContextHolder.getContext().getAuthentication();
-        if (autenticado != null
-                && autenticado.getPrincipal() instanceof UsuarioAutenticado usuario) {
-
+        if (usuario != null) {
             Optional<UsuarioAutenticado> alDia = autenticacion.refrescar(usuario.id());
             if (alDia.isEmpty()) {
                 cerrar(sesion);
