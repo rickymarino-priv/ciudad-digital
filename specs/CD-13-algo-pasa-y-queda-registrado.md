@@ -50,12 +50,17 @@ auditoría en esta rebanada — ver "Fuera de alcance".
   la entidad `DefaultJpaEventPublication` de esta versión de Modulith
   (2.1.0), y versionar ese resultado como migración, ajustando lo que
   haga falta (por ejemplo, texto sin límite para el evento serializado).
-- Habilitar `spring.modulith.events.republish-outstanding-events-on-restart=true`.
+- **No** habilitar `spring.modulith.events.republish-outstanding-events-on-restart`
+  (revisión del ADR 0013 tras implementar el punto anterior: esa propiedad
+  asume un único almacén de eventos alcanzable al arrancar el proceso, y acá
+  hay uno por tenant, ninguno alcanzable sin resolver primero un tenant —
+  ver ADR 0013 §2 y su "Pendiente de definir"). Una notificación fallida
+  queda con su fila de `event_publication` incompleta, visible para
+  diagnóstico manual, pero no se reintenta sola en esta rebanada.
 - Criterio de aceptación de este paso: la app arranca, `ModularityTests`
-  sigue en verde, y una fila en `event_publication` de la base de un
-  tenant sobrevive a un reinicio de la app si su listener nunca llegó a
-  completar (esto se termina de verificar con 1c, no hace falta un test
-  aislado solo para esto).
+  sigue en verde, y la fila de `event_publication` correspondiente a un
+  listener que corrió sin error queda marcada como completa (se termina de
+  verificar con 1c, no hace falta un test aislado solo para esto).
 
 **1b. `acceso` publica `UsuarioCreado`**
 
