@@ -29,6 +29,7 @@ diseñe cada fase.
 | CD-17 | R9 · Un vecino inicia un trámite en Mesa de Entradas y el municipio lo tramita — **terminada** |
 | CD-18 | R10 · Mesa de Entradas suma habilitación comercial simple y permiso de obra menor |
 | CD-19 | R11 · Transparencia activa básica: presupuesto y escala salarial públicos |
+| CD-20 | R12 · Un vecino sin sesión consulta el estado de su reclamo o trámite con el token que recibió al cargarlo |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -550,6 +551,67 @@ pero que son módulos propios, no esta rebanada), adjuntos/documentos
 de un registro ya publicado, y —igual que R6/R7/R8/R9/R10— cualquier
 integración con auditoría/notificaciones transversal más allá de lo que
 el propio módulo cubre.
+
+### R12 · Un vecino sin sesión consulta el estado de su reclamo o trámite con el token que recibió al cargarlo
+
+**Demo**: un vecino, sin sesión, carga un reclamo (o inicia un trámite de
+Mesa de Entradas) y recibe, en la propia confirmación del alta, un código
+largo y no adivinable que se le indica explícitamente guardar. Con ese
+código, en una pantalla pública nueva, puede volver más tarde a consultar
+en qué quedó: estado actual y, en Mesa de Entradas, el historial de
+movimientos. El mismo código no sirve para ver el reclamo o trámite de
+otro vecino, y un código de un municipio no tiene sentido probarlo contra
+otro (cada base es la de su propio tenant).
+
+R12 cierra el pendiente que dos rebanadas anteriores dejaron con el mismo
+nombre y el mismo motivo: [ADR 0014](../arquitectura/decisiones/0014-reclamos-ciudadanos-alta-publica-anonima-y-estado-propio.md)
+§6 (Reclamos, R6) y [ADR 0015](../arquitectura/decisiones/0015-motor-de-expediente-workflow-minimo.md)
+§4 (Mesa de Entradas, R9) difirieron explícitamente el seguimiento anónimo
+por token, señalando además que convenía resolverlo como mecanismo único
+para ambos módulos en vez de uno por módulo. Con los dos módulos ya
+construidos, R12 es el primer caso con dos consumidores reales y
+simultáneos, así que no hace falta esperar a un tercero para justificar
+compartir el mecanismo.
+
+Requiere ADR nuevo: [ADR 0017](../arquitectura/decisiones/0017-seguimiento-anonimo-por-token-en-reclamos-y-mesa-de-entradas.md)
+decide la forma del token —256 bits de `SecureRandom`, Base64 URL-safe,
+guardado hasheado (SHA-256, nunca en claro)— y su alcance compartido: un
+módulo canon base nuevo y chico, `seguimientoanonimo`, con una única
+utilidad sin estado (generar/hashear) y sin persistencia ni entidades
+propias; cada módulo sigue dueño de su propia columna `token_hash` y de
+su propia consulta pública.
+
+Incluye:
+- Módulo `seguimientoanonimo`: `TokenDeSeguimiento.generar()` /
+  `TokenDeSeguimiento.hash(...)`, sin Spring, sin tabla propia.
+- `reclamo` y `expediente` ganan `token_hash` (not null, índice único).
+  El alta pública (`POST /api/reclamos`, `POST /api/mesaentradas`, ya
+  existentes) devuelve el token en claro una única vez, en la respuesta
+  de esa llamada.
+- `GET /api/reclamos/seguimiento/{token}` y
+  `GET /api/mesaentradas/seguimiento/{token}`, públicos (declarados en
+  `rutasDeLecturaPublica()` de cada módulo, ADR 0012 §1, sin tocar la
+  cadena de seguridad compartida), con `404` genérico si el token no
+  matchea ninguna fila.
+- Respuesta de consulta minimizada por módulo (ADR 0017 §5): en
+  `reclamos`, el mismo shape del alta más `comentarioGestion` y
+  `actualizadoEn`; en `mesaentradas`, el mismo shape del alta más los
+  campos propios del tipo de trámite, `actualizadoEn` y el historial
+  `movimientos` sin el actor de cada movimiento. Ninguna de las dos
+  expone datos que solo debería ver el municipio (contacto, quién
+  gestionó cada paso).
+- La pantalla de confirmación del alta, en ambos módulos, muestra el
+  token y reemplaza el texto actual ("todavía no hay una pantalla para
+  volver a consultarlo") por la instrucción de guardarlo. Pantalla
+  pública nueva de consulta por token, accesible, sin cuenta.
+- **Test de aislamiento**: un token válido de un municipio no encuentra
+  nada en la base de otro municipio (la consulta corre contra el
+  datasource del tenant resuelto, igual que el resto de cada módulo).
+
+Queda fuera de R12, explícitamente diferido (ADR 0017): rate limiting
+sobre el endpoint de consulta pública y sobre las altas en general,
+reenvío del token por email/SMS al vecino, expiración del token, y
+extender el mecanismo a otros módulos que todavía no lo necesitan.
 
 ## Epic: Fase 2 — Recaudación e integración
 

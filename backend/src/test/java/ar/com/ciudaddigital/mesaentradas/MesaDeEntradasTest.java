@@ -59,7 +59,8 @@ class MesaDeEntradasTest extends SoporteDeIntegracion {
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.tipo").value("CERTIFICADO_DOMICILIO"))
                 .andExpect(jsonPath("$.estado").value("INICIADO"))
-                .andExpect(jsonPath("$.creadoEn").exists());
+                .andExpect(jsonPath("$.creadoEn").exists())
+                .andExpect(jsonPath("$.tokenDeSeguimiento").isNotEmpty());
 
         mvc.perform(iniciar(B, """
                 {"tipo":"CERTIFICADO_DOMICILIO","solicitanteNombre":"Ana Vecina",
@@ -343,6 +344,99 @@ class MesaDeEntradasTest extends SoporteDeIntegracion {
         assertNull(expediente.get("direccionLocal"));
         assertNull(expediente.get("direccionObra"));
         assertNull(expediente.get("descripcionObra"));
+    }
+
+    @Test
+    @DisplayName("seguimiento por token: consulta pública sin sesión trae estado + historial sin actor ni "
+            + "solicitanteContacto, y refleja el avance de estado hecho con sesión")
+    void seguimientoPorTokenSinDatosInternos() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "mesaentradas");
+        MockHttpSession administrador = iniciarSesionDeAdministrador(A);
+        MockHttpSession agente = crearAgenteYLoguear(A, administrador, "agente-seguimiento@" + A + ".gob.ar");
+
+        String nombre = "Ana Vecina " + UUID.randomUUID();
+        MvcResult resultadoDeAlta = mvc.perform(iniciar(A, """
+                {"tipo":"CERTIFICADO_DOMICILIO","solicitanteNombre":"%s",
+                 "solicitanteContacto":"ana@mail.com","domicilioACertificar":"San Martín 123"}"""
+                .formatted(nombre)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String cuerpoDeAlta = resultadoDeAlta.getResponse().getContentAsString();
+        Long id = ((Number) JsonPath.read(cuerpoDeAlta, "$.id")).longValue();
+        String token = JsonPath.read(cuerpoDeAlta, "$.tokenDeSeguimiento");
+
+        mvc.perform(get(portalDe(A, "/api/mesaentradas/seguimiento/" + token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.tipo").value("CERTIFICADO_DOMICILIO"))
+                .andExpect(jsonPath("$.estado").value("INICIADO"))
+                .andExpect(jsonPath("$.domicilioACertificar").value("San Martín 123"))
+                .andExpect(jsonPath("$.solicitanteContacto").doesNotExist())
+                .andExpect(jsonPath("$.movimientos.length()").value(1))
+                .andExpect(jsonPath("$.movimientos[0].estadoNuevo").value("INICIADO"))
+                .andExpect(jsonPath("$.movimientos[0].actorNombre").doesNotExist())
+                .andExpect(jsonPath("$.movimientos[0].actorEmail").doesNotExist());
+
+        mvc.perform(avanzarEstado(A, agente, id, "EN_REVISION", "Empezamos a revisarlo"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get(portalDe(A, "/api/mesaentradas/seguimiento/" + token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("EN_REVISION"))
+                .andExpect(jsonPath("$.movimientos.length()").value(2))
+                .andExpect(jsonPath("$.movimientos[1].estadoAnterior").value("INICIADO"))
+                .andExpect(jsonPath("$.movimientos[1].estadoNuevo").value("EN_REVISION"))
+                .andExpect(jsonPath("$.movimientos[1].comentario").value("Empezamos a revisarlo"))
+                .andExpect(jsonPath("$.movimientos[1].actorNombre").doesNotExist())
+                .andExpect(jsonPath("$.movimientos[1].actorEmail").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("seguimiento por token: un token inventado da 404; con el módulo sin contratar, "
+            + "un token válido da 403 MODULO_NO_CONTRATADO")
+    void seguimientoPorTokenInexistenteOSinModulo() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "mesaentradas");
+        fijarModulos(B, plataforma);
+
+        mvc.perform(get(portalDe(A, "/api/mesaentradas/seguimiento/token-inventado")))
+                .andExpect(status().isNotFound());
+
+        MvcResult resultadoDeAlta = mvc.perform(iniciar(A, """
+                {"tipo":"CERTIFICADO_DOMICILIO","solicitanteNombre":"Ana Vecina %s",
+                 "domicilioACertificar":"San Martín 123"}""".formatted(UUID.randomUUID())))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String token = JsonPath.read(resultadoDeAlta.getResponse().getContentAsString(), "$.tokenDeSeguimiento");
+
+        mvc.perform(get(portalDe(B, "/api/mesaentradas/seguimiento/" + token)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo").value("MODULO_NO_CONTRATADO"))
+                .andExpect(jsonPath("$.modulo").value("mesaentradas"));
+    }
+
+    @Test
+    @DisplayName("aislamiento: el token de un expediente de un municipio no encuentra nada en el otro")
+    void aislamientoDeTokenEntreTenants() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "mesaentradas");
+        fijarModulos(B, plataforma, "mesaentradas");
+
+        MvcResult resultadoDeAlta = mvc.perform(iniciar(A, """
+                {"tipo":"CERTIFICADO_DOMICILIO","solicitanteNombre":"Ana Vecina %s",
+                 "domicilioACertificar":"San Martín 123"}""".formatted(UUID.randomUUID())))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String token = JsonPath.read(resultadoDeAlta.getResponse().getContentAsString(), "$.tokenDeSeguimiento");
+
+        // El token es real (de un expediente que existe en A), pero la
+        // consulta corre contra la base de B, que no tiene esa fila: es la
+        // garantía real de aislamiento (el datasource ruteado por tenant),
+        // no un token "mal formado".
+        mvc.perform(get(portalDe(B, "/api/mesaentradas/seguimiento/" + token)))
+                .andExpect(status().isNotFound());
     }
 
     @Test

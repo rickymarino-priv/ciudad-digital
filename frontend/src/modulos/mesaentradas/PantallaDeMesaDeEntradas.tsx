@@ -39,6 +39,39 @@ type RespuestaAlta = {
   tipo: TipoDeTramite
   estado: Estado
   creadoEn: string
+  /**
+   * Secreto que habilita la consulta pública posterior (ADR 0017): el
+   * backend lo devuelve en claro una única vez, acá. No se vuelve a poder
+   * leer después, así que la pantalla tiene que dejarlo bien visible y
+   * copiable.
+   */
+  tokenDeSeguimiento: string
+}
+
+/** Historial sin datos de quién de la planta municipal lo gestionó (ADR
+ * 0017 §5): es un dato interno, no algo que el vecino necesite. */
+type MovimientoSeguimiento = {
+  estadoAnterior: Estado | null
+  estadoNuevo: Estado
+  comentario: string | null
+  fecha: string
+}
+
+/** Respuesta de `GET /api/mesaentradas/seguimiento/{token}` (ADR 0017 §5):
+ * subconjunto de `Expediente`, sin `solicitanteContacto` ni actor por
+ * movimiento. */
+type SeguimientoDeExpediente = {
+  id: number
+  tipo: TipoDeTramite
+  estado: Estado
+  domicilioACertificar: string | null
+  rubroComercial: string | null
+  direccionLocal: string | null
+  direccionObra: string | null
+  descripcionObra: string | null
+  creadoEn: string
+  actualizadoEn: string
+  movimientos: MovimientoSeguimiento[]
 }
 
 const ETIQUETA_ESTADO: Record<Estado, string> = {
@@ -106,8 +139,19 @@ function textoMovimiento(movimiento: Movimiento): string {
  * Detalle legible de los campos propios de cada tipo de trámite (ADR
  * 0016): una rama por tipo, igual que el `switch` de validación del
  * backend — agregar un tipo cuarto agrega un `case` acá.
+ *
+ * Toma solo los campos propios del trámite (no todo `Expediente`) para
+ * poder reusarse también con `SeguimientoDeExpediente`, que trae los
+ * mismos campos propios del tipo pero no el resto del expediente.
  */
-function textoDetalle(expediente: Expediente): string {
+function textoDetalle(expediente: {
+  tipo: TipoDeTramite
+  domicilioACertificar: string | null
+  rubroComercial: string | null
+  direccionLocal: string | null
+  direccionObra: string | null
+  descripcionObra: string | null
+}): string {
   switch (expediente.tipo) {
     case 'CERTIFICADO_DOMICILIO':
       return expediente.domicilioACertificar ?? ''
@@ -146,6 +190,11 @@ type PropsFormulario = {
 }
 
 function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
+  // Sin router de URLs en este frontend (ADR 0008): la sub-vista de
+  // consulta pública por token es un estado local más, igual que el resto
+  // de la navegación de la app (ver `App.tsx`).
+  const [vista, setVista] = useState<'formulario' | 'consulta'>('formulario')
+
   const [tipo, setTipo] = useState<TipoDeTramite>('CERTIFICADO_DOMICILIO')
   const [solicitanteNombre, setSolicitanteNombre] = useState('')
   const [solicitanteContacto, setSolicitanteContacto] = useState('')
@@ -157,6 +206,7 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmacion, setConfirmacion] = useState<RespuestaAlta | null>(null)
+  const [tokenCopiado, setTokenCopiado] = useState(false)
 
   const vigente = useRef(true)
   useEffect(() => {
@@ -168,11 +218,18 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
 
   const titulo = useRef<HTMLHeadingElement>(null)
   const errorRef = useRef<HTMLParagraphElement>(null)
-  const confirmacionRef = useRef<HTMLParagraphElement>(null)
+  const confirmacionRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    // `vista` como dependencia: al volver de la consulta de seguimiento
+    // `FormularioDeAlta` no se remonta (es el mismo `return` condicional
+    // dentro del mismo componente), así que sin esto el título nunca
+    // recuperaba el foco y quedaba en `<body>`. Cuando `vista` pasa a
+    // 'consulta' el componente ya devolvió `<ConsultaDeSeguimiento />` antes
+    // de este render, así que `titulo.current` apunta al `h1` que se acaba
+    // de desmontar (React lo deja en `null`) y `focus()` no hace nada.
     titulo.current?.focus()
-  }, [])
+  }, [vista])
 
   useEffect(() => {
     if (error) {
@@ -246,6 +303,33 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
     }
   }
 
+  /**
+   * Copia el token al portapapeles como comodidad extra. El código ya
+   * queda visible y seleccionable a mano en el campo de solo lectura de
+   * abajo, así que si el navegador no permite usar el portapapeles (sin
+   * HTTPS, permiso denegado) no hay nada más que hacer: no es un error que
+   * el vecino necesite ver.
+   */
+  async function copiarToken(token: string) {
+    try {
+      await navigator.clipboard.writeText(token)
+      if (vigente.current) {
+        setTokenCopiado(true)
+        window.setTimeout(() => {
+          if (vigente.current) {
+            setTokenCopiado(false)
+          }
+        }, 2000)
+      }
+    } catch {
+      // Sin portapapeles disponible: el código sigue ahí para copiar a mano.
+    }
+  }
+
+  if (vista === 'consulta') {
+    return <ConsultaDeSeguimiento modulo={modulo} onVolver={() => setVista('formulario')} />
+  }
+
   const idDelError = 'error-de-alta-tramite'
 
   return (
@@ -263,6 +347,9 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
         <button type="button" className="boton boton--secundario" onClick={onVolver}>
           Volver al portal
         </button>
+        <button type="button" className="boton boton--secundario" onClick={() => setVista('consulta')}>
+          ¿Ya iniciaste un trámite? Consultá su estado
+        </button>
       </div>
 
       <form className="formulario" onSubmit={(evento) => void enviarTramite(evento)}>
@@ -273,13 +360,37 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
         )}
 
         {confirmacion && (
-          <p role="status" tabIndex={-1} ref={confirmacionRef}>
-            Tu trámite quedó registrado con el número {confirmacion.id}. Vas
-            a ver el estado «Iniciado» hasta que Mesa de Entradas lo empiece
-            a revisar: en esta rebanada todavía no hay una pantalla para
-            volver a consultarlo más adelante, así que te conviene anotar
-            el número.
-          </p>
+          <div role="status" tabIndex={-1} ref={confirmacionRef}>
+            <p>
+              Tu trámite quedó registrado con el número {confirmacion.id}.
+              Vas a ver el estado «Iniciado» hasta que Mesa de Entradas lo
+              empiece a revisar.
+            </p>
+            <p>
+              <strong>Guardá este código de seguimiento: es la única forma
+              de volver a consultar el estado de tu trámite más
+              adelante.</strong> No lo vamos a reenviar por ningún otro
+              medio ni lo vas a poder recuperar si lo perdés.
+            </p>
+            <div className="campo">
+              <label htmlFor="tramite-token-generado">Código de seguimiento</label>
+              <div className="formulario__acciones formulario__acciones--compacto">
+                <input
+                  id="tramite-token-generado"
+                  readOnly
+                  value={confirmacion.tokenDeSeguimiento}
+                  onFocus={(evento) => evento.target.select()}
+                />
+                <button
+                  type="button"
+                  className="boton boton--secundario"
+                  onClick={() => void copiarToken(confirmacion.tokenDeSeguimiento)}
+                >
+                  {tokenCopiado ? 'Copiado' : 'Copiar'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="campo">
@@ -415,6 +526,184 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
           </button>
         </div>
       </form>
+    </main>
+  )
+}
+
+// --- Consulta pública por token de seguimiento (ADR 0017) ---
+
+type PropsConsulta = {
+  modulo?: Modulo
+  onVolver: () => void
+}
+
+/**
+ * Sub-vista de `FormularioDeAlta`: un vecino sin sesión, con el token que
+ * recibió al iniciar un trámite, consulta en qué quedó — de solo lectura,
+ * sin ninguna acción posible (ADR 0017 §5/§6). El historial de movimientos
+ * viene sin actor (`actorNombre`/`actorEmail`): quién de la planta
+ * municipal lo atendió es un dato interno, no algo que el vecino necesite.
+ */
+function ConsultaDeSeguimiento({ modulo, onVolver }: PropsConsulta) {
+  const [codigo, setCodigo] = useState('')
+  const [consultando, setConsultando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [resultado, setResultado] = useState<SeguimientoDeExpediente | null>(null)
+
+  const vigente = useRef(true)
+  useEffect(() => {
+    vigente.current = true
+    return () => {
+      vigente.current = false
+    }
+  }, [])
+
+  const titulo = useRef<HTMLHeadingElement>(null)
+  const errorRef = useRef<HTMLParagraphElement>(null)
+  const resultadoRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    titulo.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    if (error) {
+      errorRef.current?.focus()
+    }
+  }, [error])
+
+  useEffect(() => {
+    if (resultado) {
+      resultadoRef.current?.focus()
+    }
+  }, [resultado])
+
+  async function consultar(evento: FormEvent) {
+    evento.preventDefault()
+    setError(null)
+    setResultado(null)
+    setConsultando(true)
+    try {
+      const respuesta = await pedir<SeguimientoDeExpediente>(
+        `/api/mesaentradas/seguimiento/${encodeURIComponent(codigo.trim())}`,
+        'No pudimos encontrar un trámite con ese código.',
+      )
+      if (!vigente.current) {
+        return
+      }
+      setResultado(respuesta)
+    } catch (fallo: unknown) {
+      if (!vigente.current) {
+        return
+      }
+      setError(fallo instanceof Error ? fallo.message : 'No pudimos encontrar un trámite con ese código.')
+    } finally {
+      if (vigente.current) {
+        setConsultando(false)
+      }
+    }
+  }
+
+  const idDelError = 'error-de-consulta-tramite'
+
+  return (
+    <main id="contenido" className="contenido">
+      <h1 ref={titulo} tabIndex={-1}>
+        Consultar el estado de un trámite
+      </h1>
+      <p className="contenido__bajada">
+        Ingresá el código de seguimiento que recibiste al iniciar tu
+        trámite en {modulo?.nombre ?? 'Mesa de Entradas'}, sin espacios ni
+        caracteres de más.
+      </p>
+
+      <div className="formulario__acciones">
+        <button type="button" className="boton boton--secundario" onClick={onVolver}>
+          Volver al formulario de alta
+        </button>
+      </div>
+
+      <form className="formulario" onSubmit={(evento) => void consultar(evento)}>
+        {error && (
+          <p className="formulario__error" id={idDelError} role="alert" tabIndex={-1} ref={errorRef}>
+            {error}
+          </p>
+        )}
+
+        <div className="campo">
+          <label htmlFor="tramite-codigo-seguimiento">Código de seguimiento</label>
+          <input
+            id="tramite-codigo-seguimiento"
+            required
+            value={codigo}
+            onChange={(evento) => setCodigo(evento.target.value)}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? idDelError : undefined}
+          />
+        </div>
+
+        <div className="formulario__acciones">
+          <button type="submit" className="boton" disabled={consultando} aria-busy={consultando}>
+            {consultando ? 'Consultando…' : 'Consultar'}
+          </button>
+        </div>
+      </form>
+
+      {resultado && (
+        <div role="status" tabIndex={-1} ref={resultadoRef}>
+          <dl className="ficha">
+            <div className="ficha__fila">
+              <dt>Tipo de trámite</dt>
+              <dd>{ETIQUETA_TIPO[resultado.tipo]}</dd>
+            </div>
+            <div className="ficha__fila">
+              <dt>Detalle</dt>
+              <dd>{textoDetalle(resultado)}</dd>
+            </div>
+            <div className="ficha__fila">
+              <dt>Estado</dt>
+              <dd>{ETIQUETA_ESTADO[resultado.estado]}</dd>
+            </div>
+            <div className="ficha__fila">
+              <dt>Creado</dt>
+              <dd>{FECHA.format(new Date(resultado.creadoEn))}</dd>
+            </div>
+            <div className="ficha__fila">
+              <dt>Última actualización</dt>
+              <dd>{FECHA.format(new Date(resultado.actualizadoEn))}</dd>
+            </div>
+          </dl>
+
+          <div className="tabla-contenedor">
+            <table className="tabla">
+              <caption>
+                Historial de movimientos de tu trámite, sin el nombre de
+                quién lo gestionó en el municipio.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Estado anterior</th>
+                  <th scope="col">Estado nuevo</th>
+                  <th scope="col">Comentario</th>
+                  <th scope="col">Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resultado.movimientos.map((movimiento, indice) => (
+                  <tr key={indice}>
+                    <th scope="row">
+                      {movimiento.estadoAnterior ? ETIQUETA_ESTADO[movimiento.estadoAnterior] : 'Alta pública'}
+                    </th>
+                    <td>{ETIQUETA_ESTADO[movimiento.estadoNuevo]}</td>
+                    <td>{movimiento.comentario ?? 'Sin comentario'}</td>
+                    <td>{FECHA.format(new Date(movimiento.fecha))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

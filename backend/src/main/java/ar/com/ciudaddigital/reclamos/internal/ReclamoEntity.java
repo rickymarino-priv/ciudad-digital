@@ -18,7 +18,9 @@ import jakarta.persistence.Table;
  * hace falta, la base ya es la del municipio. {@code nombreContacto} y
  * {@code contacto} son texto libre, opcional y sin verificar —no hay
  * cuenta detrás que los respalde—, se guardan solo para que el municipio
- * pueda volver a contactar al vecino (ADR 0014 §4).
+ * pueda volver a contactar al vecino (ADR 0014 §4). {@code tokenHash} es el
+ * hash SHA-256 del token de seguimiento anónimo (ADR 0017): el token en
+ * claro nunca llega a esta entidad, ni tiene getter que lo exponga.
  */
 @Entity
 @Table(name = "reclamo")
@@ -57,11 +59,20 @@ class ReclamoEntity {
     @Column(name = "actualizado_en", nullable = false)
     private Instant actualizadoEn;
 
+    @Column(name = "token_hash", nullable = false, length = 64)
+    private String tokenHash;
+
     protected ReclamoEntity() {
     }
 
+    /**
+     * {@code tokenHash} llega ya calculado: esta entidad no depende de
+     * {@code seguimientoanonimo}, es {@code GestionDeReclamos} quien genera
+     * el token y calcula su hash (ADR 0017 §4). El token en claro nunca
+     * llega hasta acá.
+     */
     static ReclamoEntity nuevo(CategoriaReclamo categoria, String descripcion, String direccion,
-            String nombreContacto, String contacto) {
+            String nombreContacto, String contacto, String tokenHash) {
 
         ReclamoEntity reclamo = new ReclamoEntity();
         reclamo.categoria = categoria;
@@ -72,6 +83,7 @@ class ReclamoEntity {
         reclamo.estado = EstadoReclamo.NUEVO;
         reclamo.creadoEn = Instant.now();
         reclamo.actualizadoEn = reclamo.creadoEn;
+        reclamo.tokenHash = tokenHash;
         return reclamo;
     }
 

@@ -5,9 +5,11 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ar.com.ciudaddigital.seguimientoanonimo.TokenDeSeguimiento;
+
 /**
- * Alta, listado y avance de estado de los expedientes del municipio del
- * request en curso (ADR 0015).
+ * Alta, listado, avance de estado y consulta anónima por token de los
+ * expedientes del municipio del request en curso (ADR 0015, ADR 0017).
  */
 @Service
 class GestionDeExpedientes {
@@ -28,7 +30,7 @@ class GestionDeExpedientes {
     }
 
     @Transactional("tenantTransactionManager")
-    ExpedienteEntity iniciar(TipoDeTramite tipo, String solicitanteNombre, String solicitanteContacto,
+    ExpedienteCreado iniciar(TipoDeTramite tipo, String solicitanteNombre, String solicitanteContacto,
             DatosPropiosDelTramite datos) {
 
         // El controller ya resuelve el tipo desde el string del request
@@ -53,9 +55,13 @@ class GestionDeExpedientes {
         }
         DatosPropiosDelTramite datosSaneados = validarYSanearDatosPropios(tipo, datos);
 
-        ExpedienteEntity expediente =
-                ExpedienteEntity.nuevo(tipo, solicitanteNombre, solicitanteContacto, datosSaneados);
-        return expedientes.save(expediente);
+        // El token en claro solo existe acá, entre que se genera y que el
+        // record de retorno lo lleva hasta el controller (ADR 0017 §4): ni
+        // la entidad ni el repositorio lo vuelven a ver.
+        String tokenDeSeguimiento = TokenDeSeguimiento.generar();
+        ExpedienteEntity expediente = ExpedienteEntity.nuevo(tipo, solicitanteNombre, solicitanteContacto,
+                datosSaneados, TokenDeSeguimiento.hash(tokenDeSeguimiento));
+        return new ExpedienteCreado(expedientes.save(expediente), tokenDeSeguimiento);
     }
 
     /**
@@ -129,6 +135,21 @@ class GestionDeExpedientes {
         return expedientes.findAllByOrderByCreadoEnDesc();
     }
 
+    /**
+     * Consulta anónima por posesión del token (ADR 0017 §4): un
+     * {@code token} vacío se trata igual que "no encontrado", nunca como
+     * {@link SolicitudInvalida}, para no distinguirle a quien prueba
+     * tokens al azar un formato inválido de un token que no existe.
+     */
+    ExpedienteEntity consultarPorToken(String token) {
+        if (token == null || token.isBlank()) {
+            throw new TokenNoEncontrado("No encontramos un trámite con ese código.");
+        }
+
+        return expedientes.findByTokenHash(TokenDeSeguimiento.hash(token))
+                .orElseThrow(() -> new TokenNoEncontrado("No encontramos un trámite con ese código."));
+    }
+
     @Transactional("tenantTransactionManager")
     ExpedienteEntity avanzar(Long id, EstadoDeExpediente nuevoEstado, String comentario, String actorNombre,
             String actorEmail) {
@@ -148,5 +169,14 @@ class GestionDeExpedientes {
 
         expediente.avanzar(nuevoEstado, actorNombre, actorEmail, comentario);
         return expedientes.save(expediente);
+    }
+
+    /**
+     * Resultado del alta: además del expediente, el token en claro para
+     * que el controller lo devuelva en la respuesta HTTP —la única vez que
+     * existe fuera de este método— sin forzarlo a volver a tocar el
+     * servicio (ADR 0017 §4).
+     */
+    record ExpedienteCreado(ExpedienteEntity expediente, String tokenDeSeguimiento) {
     }
 }

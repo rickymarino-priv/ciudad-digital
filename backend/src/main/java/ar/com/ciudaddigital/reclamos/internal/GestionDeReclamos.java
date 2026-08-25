@@ -9,9 +9,11 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ar.com.ciudaddigital.seguimientoanonimo.TokenDeSeguimiento;
+
 /**
- * Alta, listado y cambio de estado de los reclamos del municipio del
- * request en curso (ADR 0014).
+ * Alta, listado, cambio de estado y consulta anónima por token de los
+ * reclamos del municipio del request en curso (ADR 0014, ADR 0017).
  */
 @Service
 class GestionDeReclamos {
@@ -42,7 +44,7 @@ class GestionDeReclamos {
     }
 
     @Transactional("tenantTransactionManager")
-    ReclamoEntity cargar(CategoriaReclamo categoria, String descripcion, String direccion,
+    ReclamoCreado cargar(CategoriaReclamo categoria, String descripcion, String direccion,
             String nombreContacto, String contacto) {
 
         if (categoria == null) {
@@ -73,13 +75,32 @@ class GestionDeReclamos {
                     "El contacto no puede superar los " + LARGO_MAXIMO_CONTACTO + " caracteres.");
         }
 
+        // El token en claro solo existe acá, entre que se genera y que el
+        // record de retorno lo lleva hasta el controller (ADR 0017 §4): ni
+        // la entidad ni el repositorio lo vuelven a ver.
+        String tokenDeSeguimiento = TokenDeSeguimiento.generar();
         ReclamoEntity reclamo = ReclamoEntity.nuevo(categoria, descripcion, direccion,
-                nombreContacto, contacto);
-        return reclamos.save(reclamo);
+                nombreContacto, contacto, TokenDeSeguimiento.hash(tokenDeSeguimiento));
+        return new ReclamoCreado(reclamos.save(reclamo), tokenDeSeguimiento);
     }
 
     List<ReclamoEntity> listar() {
         return reclamos.findAllByOrderByCreadoEnDesc();
+    }
+
+    /**
+     * Consulta anónima por posesión del token (ADR 0017 §4): un
+     * {@code token} vacío se trata igual que "no encontrado", nunca como
+     * {@link SolicitudInvalida}, para no distinguirle a quien prueba
+     * tokens al azar un formato inválido de un token que no existe.
+     */
+    ReclamoEntity consultarPorToken(String token) {
+        if (token == null || token.isBlank()) {
+            throw new TokenNoEncontrado("No encontramos un reclamo con ese código.");
+        }
+
+        return reclamos.findByTokenHash(TokenDeSeguimiento.hash(token))
+                .orElseThrow(() -> new TokenNoEncontrado("No encontramos un reclamo con ese código."));
     }
 
     @Transactional("tenantTransactionManager")
@@ -98,5 +119,14 @@ class GestionDeReclamos {
 
         reclamo.cambiarEstado(nuevoEstado, comentario);
         return reclamos.save(reclamo);
+    }
+
+    /**
+     * Resultado del alta: además del reclamo, el token en claro para que el
+     * controller lo devuelva en la respuesta HTTP —la única vez que existe
+     * fuera de este método— sin forzarlo a volver a tocar el servicio
+     * (ADR 0017 §4).
+     */
+    record ReclamoCreado(ReclamoEntity reclamo, String tokenDeSeguimiento) {
     }
 }

@@ -36,6 +36,9 @@ import jakarta.persistence.Table;
  * <p>El historial de movimientos vive siempre junto al expediente (ADR 0015
  * §2): no hace falta un repositorio propio para
  * {@link MovimientoDeExpedienteEntity}, se persiste en cascada acá.
+ * {@code tokenHash} es el hash SHA-256 del token de seguimiento anónimo
+ * (ADR 0017), mismo criterio que {@code reclamo.token_hash}: el token en
+ * claro nunca llega a esta entidad, ni tiene getter que lo exponga.
  */
 @Entity
 @Table(name = "expediente")
@@ -80,6 +83,9 @@ class ExpedienteEntity {
     @Column(name = "actualizado_en", nullable = false)
     private Instant actualizadoEn;
 
+    @Column(name = "token_hash", nullable = false, length = 64)
+    private String tokenHash;
+
     // EAGER, no el default LAZY de @OneToMany: la aplicación corre con
     // spring.jpa.open-in-view=false (sin sesión abierta más allá de la
     // transacción del service), y GestionDeExpedientes.listar()/avanzar()
@@ -95,8 +101,14 @@ class ExpedienteEntity {
     protected ExpedienteEntity() {
     }
 
+    /**
+     * {@code tokenHash} llega ya calculado: esta entidad no depende de
+     * {@code seguimientoanonimo}, es {@code GestionDeExpedientes} quien
+     * genera el token y calcula su hash (ADR 0017 §4). El token en claro
+     * nunca llega hasta acá.
+     */
     static ExpedienteEntity nuevo(TipoDeTramite tipo, String solicitanteNombre, String solicitanteContacto,
-            DatosPropiosDelTramite datos) {
+            DatosPropiosDelTramite datos, String tokenHash) {
 
         ExpedienteEntity expediente = new ExpedienteEntity();
         expediente.tipo = tipo;
@@ -110,6 +122,7 @@ class ExpedienteEntity {
         expediente.descripcionObra = datos.descripcionObra();
         expediente.creadoEn = Instant.now();
         expediente.actualizadoEn = expediente.creadoEn;
+        expediente.tokenHash = tokenHash;
         expediente.agregarMovimiento(MovimientoDeExpedienteEntity.deAlta(expediente.estado));
         return expediente;
     }

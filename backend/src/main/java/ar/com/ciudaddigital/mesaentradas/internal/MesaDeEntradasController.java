@@ -17,10 +17,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import ar.com.ciudaddigital.acceso.ActorAutenticado;
+import ar.com.ciudaddigital.mesaentradas.internal.GestionDeExpedientes.ExpedienteCreado;
 
 /**
- * Alta pública de trámites de Mesa de Entradas y su gestión por el
- * municipio (ADR 0015).
+ * Alta pública de trámites de Mesa de Entradas, su gestión por el
+ * municipio (ADR 0015) y la consulta pública por token de seguimiento
+ * (ADR 0017).
  *
  * <p>El alta no lleva {@code @PreAuthorize}: es la ruta que
  * {@code DescriptorDelModuloMesaDeEntradas} declara como
@@ -28,7 +30,10 @@ import ar.com.ciudaddigital.acceso.ActorAutenticado;
  * entitlement y el {@code permitAll()} de {@code POST} que arma la cadena
  * de seguridad a partir de esa declaración — mismo mecanismo que
  * {@code ReclamosController} (ADR 0014 §1), reutilizado tal cual por
- * ADR 0015 §4. Listar y avanzar el estado sí requieren sesión y permiso.
+ * ADR 0015 §4. La consulta por token tampoco lleva {@code @PreAuthorize}:
+ * es la ruta que {@code DescriptorDelModuloMesaDeEntradas} declara como
+ * {@code rutasDeLecturaPublica()} (ADR 0017 §4). Listar y avanzar el
+ * estado sí requieren sesión y permiso.
  */
 @RestController
 @RequestMapping("/api/mesaentradas")
@@ -46,15 +51,21 @@ class MesaDeEntradasController {
         DatosPropiosDelTramite datos = new DatosPropiosDelTramite(
                 request.domicilioACertificar(), request.rubroComercial(), request.direccionLocal(),
                 request.direccionObra(), request.descripcionObra());
-        ExpedienteEntity expediente =
+        ExpedienteCreado creado =
                 gestion.iniciar(tipo, request.solicitanteNombre(), request.solicitanteContacto(), datos);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ExpedientePublicoResponse.de(expediente));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ExpedientePublicoResponse.de(creado.expediente(), creado.tokenDeSeguimiento()));
     }
 
     @GetMapping
     @PreAuthorize("hasAuthority('mesaentradas.ver')")
     List<ExpedienteResponse> listar() {
         return gestion.listar().stream().map(ExpedienteResponse::de).toList();
+    }
+
+    @GetMapping("/seguimiento/{token}")
+    SeguimientoDeExpedienteResponse consultarPorToken(@PathVariable String token) {
+        return SeguimientoDeExpedienteResponse.de(gestion.consultarPorToken(token));
     }
 
     @PatchMapping("/{id}/estado")
@@ -83,6 +94,17 @@ class MesaDeEntradasController {
     @ExceptionHandler(SolicitudInvalida.class)
     ResponseEntity<ErrorResponse> solicitudInvalida(SolicitudInvalida e) {
         return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+    }
+
+    /**
+     * Mensaje genérico, siempre el mismo, sin importar si el token no
+     * matchea ninguna fila o el string ni siquiera tiene forma de token
+     * (ADR 0017 §4).
+     */
+    @ExceptionHandler(TokenNoEncontrado.class)
+    ResponseEntity<ErrorResponse> tokenNoEncontrado(TokenNoEncontrado e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("No encontramos un trámite con ese código."));
     }
 
     private static TipoDeTramite tipoDe(String tipo) {
@@ -125,14 +147,17 @@ class MesaDeEntradasController {
      * Confirmación al vecino que inició el trámite: deliberadamente sin
      * {@code solicitanteContacto}/{@code domicilioACertificar} — mismo
      * criterio que {@code ReclamoPublicoResponse}, no es una vista de
-     * gestión.
+     * gestión. {@code tokenDeSeguimiento} es la única vez en toda la vida
+     * del expediente que ese valor viaja en claro (ADR 0017 §4): ni la
+     * entidad ni ningún otro endpoint lo vuelven a exponer.
      */
-    record ExpedientePublicoResponse(Long id, String tipo, String estado, Instant creadoEn) {
+    record ExpedientePublicoResponse(Long id, String tipo, String estado, Instant creadoEn,
+            String tokenDeSeguimiento) {
 
-        static ExpedientePublicoResponse de(ExpedienteEntity expediente) {
+        static ExpedientePublicoResponse de(ExpedienteEntity expediente, String tokenDeSeguimiento) {
             return new ExpedientePublicoResponse(
                     expediente.getId(), expediente.getTipo().name(), expediente.getEstado().name(),
-                    expediente.getCreadoEn());
+                    expediente.getCreadoEn(), tokenDeSeguimiento);
         }
     }
 
@@ -179,6 +204,64 @@ class MesaDeEntradasController {
                     movimiento.getEstadoNuevo().name(),
                     movimiento.getActorNombre(),
                     movimiento.getActorEmail(),
+                    movimiento.getComentario(),
+                    movimiento.getFecha());
+        }
+    }
+
+    /**
+     * Lo que ve el vecino que consulta con su token de seguimiento (ADR
+     * 0017 §5): mismo shape que {@link ExpedienteResponse} menos
+     * {@code solicitanteContacto} (dato propio, redundante para quien ya lo
+     * escribió) y con {@code movimientos} mapeado a
+     * {@link MovimientoSeguimientoResponse}, sin actor: quién de la planta
+     * municipal atendió el trámite es un dato interno del municipio. Los
+     * campos propios del tipo de trámite sí se incluyen tal cual: son
+     * datos que el propio vecino ya cargó.
+     */
+    record SeguimientoDeExpedienteResponse(
+            Long id,
+            String tipo,
+            String estado,
+            String solicitanteNombre,
+            String domicilioACertificar,
+            String rubroComercial,
+            String direccionLocal,
+            String direccionObra,
+            String descripcionObra,
+            Instant creadoEn,
+            Instant actualizadoEn,
+            List<MovimientoSeguimientoResponse> movimientos) {
+
+        static SeguimientoDeExpedienteResponse de(ExpedienteEntity expediente) {
+            return new SeguimientoDeExpedienteResponse(
+                    expediente.getId(),
+                    expediente.getTipo().name(),
+                    expediente.getEstado().name(),
+                    expediente.getSolicitanteNombre(),
+                    expediente.getDomicilioACertificar(),
+                    expediente.getRubroComercial(),
+                    expediente.getDireccionLocal(),
+                    expediente.getDireccionObra(),
+                    expediente.getDescripcionObra(),
+                    expediente.getCreadoEn(),
+                    expediente.getActualizadoEn(),
+                    expediente.getMovimientos().stream().map(MovimientoSeguimientoResponse::de).toList());
+        }
+    }
+
+    /**
+     * Un movimiento del historial, sin {@code actorNombre}/{@code actorEmail}
+     * (ADR 0017 §5): quién de la planta municipal lo hizo no es algo que el
+     * vecino necesite para saber en qué quedó su trámite.
+     */
+    record MovimientoSeguimientoResponse(
+            String estadoAnterior, String estadoNuevo, String comentario, Instant fecha) {
+
+        static MovimientoSeguimientoResponse de(MovimientoDeExpedienteEntity movimiento) {
+            return new MovimientoSeguimientoResponse(
+                    movimiento.getEstadoAnterior() == null ? null : movimiento.getEstadoAnterior().name(),
+                    movimiento.getEstadoNuevo().name(),
                     movimiento.getComentario(),
                     movimiento.getFecha());
         }
