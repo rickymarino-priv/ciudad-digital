@@ -26,6 +26,7 @@ diseñe cada fase.
 | CD-14 | R6 · Un vecino carga un reclamo y el municipio lo atiende — **terminada** |
 | CD-15 | R7 · El municipio publica una norma en el Boletín Oficial y cualquiera la encuentra |
 | CD-16 | R8 · Un vecino busca dónde está sepultado un familiar y el municipio administra el registro del cementerio |
+| CD-17 | R9 · Un vecino inicia un trámite en Mesa de Entradas y el municipio lo tramita |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -325,6 +326,79 @@ completos más allá del momento del alta, edición/borrado de un registro
 ya cargado, adjuntos/documentación, geolocalización del cementerio o de
 las parcelas, y —igual que en R6/R7— cualquier integración con
 auditoría/notificaciones transversal.
+
+### R9 · Un vecino inicia un trámite en Mesa de Entradas y el municipio lo tramita
+
+**Demo**: un vecino, sin sesión, entra al portal público de un municipio e
+inicia un trámite de certificado de domicilio, indicando su nombre y el
+domicilio a certificar. Un agente de Mesa de Entradas, con sesión y el
+permiso `mesaentradas.gestionar`, inicia sesión, ve el trámite entrar a la
+cola en estado "Iniciado", lo pasa a "En revisión" y después a "Aprobado"
+(o "Rechazado"), quedando registrado en cada paso quién lo hizo y cuándo.
+El mismo trámite no aparece en el portal de otro municipio.
+
+R9 arranca Mesa de Entradas — el módulo ancla que el
+[roadmap](roadmap-fases.md#fase-1--mvp-vendible--módulos-ancla) describe
+como "columna vertebral del sistema"— y con él el **motor de
+expediente/workflow configurable**, movido de Fase 0 a Fase 1 desde que la
+Fase 0 se organizó (ver ["Movido a Fase 1"](#movido-a-fase-1), más arriba)
+y señalado como pendiente por R6 (ADR 0014 §3) y R8. Es la primera
+rebanada que sí lo necesita: a diferencia de Reclamos, Mesa de Entradas
+tiene más de un tipo de trámite en el roadmap (certificados, habilitación
+comercial simple, permiso de obra menor), cada uno con su propio circuito
+de estados.
+
+Requiere ADR nuevo: [ADR 0015](../arquitectura/decisiones/0015-motor-de-expediente-workflow-minimo.md)
+decide la forma mínima del motor — circuito fijo **por tipo de trámite**,
+definido en código y catálogo de producto, no editable por el municipio
+(la ambición completa de "cada municipio con sus propios pasos" queda
+pendiente hasta que un caso real la pida) — y dos entidades,
+`Expediente`/`MovimientoDeExpediente`, en vez de un módulo transversal
+nuevo del que otros módulos dependan.
+
+De los 3-5 trámites que el roadmap menciona como subset de Trámites a
+Distancia, R9 construye **uno solo**: certificado de domicilio, el más
+simple de los tres nombrados. Habilitación comercial simple y permiso de
+obra menor quedan para una rebanada siguiente que sume su propio
+`TipoDeTramite` y `CircuitoDeTramite` sin tocar el motor (ADR 0015,
+Consecuencias) — partir así, en vez de construir los tres tipos de una,
+es lo que mantiene esta rebanada demostrable en una semana (regla de
+CLAUDE.md).
+
+El alta del trámite reutiliza tal cual el mecanismo de escritura pública
+anónima del [ADR 0014](../arquitectura/decisiones/0014-reclamos-ciudadanos-alta-publica-anonima-y-estado-propio.md)
+§1 (`rutasDeEscrituraPublica()`): el producto no tiene identidad ciudadana
+todavía, así que iniciar un trámite no puede exigir cuenta. Gestionarlo
+—listar y avanzar el estado— requiere sesión y permiso, mismo patrón que
+`reclamos.ver`/`reclamos.gestionar`.
+
+Incluye:
+- Módulo `mesaentradas`, contratable por municipio, con alta anónima vía
+  `POST /api/mesaentradas` sin sesión y listado/avance de estado
+  protegidos por sesión y permiso (`mesaentradas.ver`,
+  `mesaentradas.gestionar`, en ambos roles de sistema — funcionalidad
+  operativa real desde el día uno, mismo criterio que `reclamos`/
+  `cementerio`).
+- Un único tipo de trámite (`CERTIFICADO_DOMICILIO`) con su circuito fijo:
+  `INICIADO → EN_REVISION → APROBADO/RECHAZADO`.
+- `MovimientoDeExpediente`: una fila por cada cambio de estado, con quién
+  lo hizo (actor autenticado, copia de nombre/email, `null` en el
+  movimiento de alta porque es anónima) y cuándo.
+- Pantalla pública de alta (accesible, sin cuenta) y panel de gestión para
+  el personal de Mesa de Entradas, mismo patrón de "una pantalla, dos
+  vistas según permiso" que ya usa `reclamos`.
+- **Test de aislamiento**: un expediente iniciado en un municipio no es
+  visible ni gestionable desde otro.
+
+Queda fuera de R9, explícitamente diferido (ADR 0015): los demás tipos de
+trámite del subset (habilitación comercial simple, permiso de obra
+menor), circuitos configurables por municipio, seguimiento del trámite
+por el vecino anónimo con un token (mismo pendiente que ADR 0014 ya dejó
+para reclamos), giro entre áreas/derivación, caratulación y numeración
+correlativa oficial, generación del documento del certificado y firma
+electrónica, notificaciones al vecino de cambios de estado, y —igual que
+R6/R7/R8— cualquier integración con auditoría/notificaciones transversal
+más allá de lo que este propio módulo cubre.
 
 ## Epic: Fase 2 — Recaudación e integración
 

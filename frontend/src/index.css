@@ -393,6 +393,18 @@ body {
   border-bottom: none;
 }
 
+/* Lista dentro de una celda de tabla (por ejemplo, el historial de
+   movimientos de un expediente de Mesa de Entradas): mantiene la
+   semántica de lista para lectores de pantalla, sin el respiro de una
+   lista de nivel de página. */
+.lista-compacta {
+  margin: 0;
+  padding-left: 1.125rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
 /*
  * Administración: usuarios y roles.
  */

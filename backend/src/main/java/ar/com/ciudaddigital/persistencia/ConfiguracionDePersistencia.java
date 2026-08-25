@@ -116,6 +116,9 @@ class ConfiguracionDePersistencia {
     /** Sepulturas del cementerio municipal del municipio (backlog R8). */
     static final String PAQUETE_CEMENTERIO = "ar.com.ciudaddigital.cementerio";
 
+    /** Expedientes de Mesa de Entradas del municipio (backlog R9, ADR 0015). */
+    static final String PAQUETE_MESAENTRADAS = "ar.com.ciudaddigital.mesaentradas";
+
     /**
      * Entidad de Spring Modulith que registra las publicaciones de eventos
      * (tabla {@code event_publication}). Vive en la base de tenant, no en
@@ -144,7 +147,7 @@ class ConfiguracionDePersistencia {
     @EnableJpaRepositories(
             basePackages = {
                     PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS, PAQUETE_BOLETIN,
-                    PAQUETE_CEMENTERIO },
+                    PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS },
             entityManagerFactoryRef = "tenantEntityManagerFactory",
             transactionManagerRef = "tenantTransactionManager")
     static class RepositoriosDeTenant {
@@ -218,7 +221,7 @@ class ConfiguracionDePersistencia {
         emf.setDataSource(tenantDataSource);
         emf.setPackagesToScan(
                 PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS, PAQUETE_BOLETIN,
-                PAQUETE_CEMENTERIO, PAQUETE_EVENTOS);
+                PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_EVENTOS);
         emf.setPersistenceUnitName("tenant");
         emf.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         emf.setJpaPropertyMap(propiedadesDeTenant());
