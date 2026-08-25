@@ -23,7 +23,8 @@ diseñe cada fase.
 | CD-11 | R3 · Un usuario entra a su municipio — **terminada** |
 | CD-12 | R4 · Un módulo se prende y se apaga — **terminada** |
 | CD-13 | R5 · Algo pasa y queda registrado — **terminada** |
-| CD-14 | R6 · Un vecino carga un reclamo y el municipio lo atiende |
+| CD-14 | R6 · Un vecino carga un reclamo y el municipio lo atiende — **terminada** |
+| CD-15 | R7 · El municipio publica una norma en el Boletín Oficial y cualquiera la encuentra |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -192,7 +193,63 @@ frontend, migración de baja de su permiso) y migrar
 del mecanismo de gating en lugar de `ejemplo`. Mantenerla separada evita
 que R6 mezcle una rebanada de producto con una tarea de housekeeping sin
 valor de demo propio; `ejemplo` sigue activo y sin tocar hasta que esa
-tarea se haga.
+tarea se haga. Con R7 sumando un segundo módulo real, esta limpieza pierde
+aún más urgencia (el mecanismo ya tiene sujetos de prueba reales de sobra)
+y sigue sin programarse.
+
+### R7 · El municipio publica una norma en el Boletín Oficial y cualquiera la encuentra
+
+**Demo**: un agente del municipio con el permiso `boletin.publicar` inicia
+sesión y publica una norma (ordenanza, decreto, resolución o comunicado)
+con tipo, número, título, fecha y texto. Un vecino, sin sesión, entra al
+portal público, filtra por tipo y busca por texto en el título, y
+encuentra esa norma. La misma norma no aparece en el portal de otro
+municipio.
+
+No requiere ADR nuevo: la lectura pública (`GET /api/boletin`) reutiliza
+tal cual el mecanismo `rutasDeLecturaPublica()` de
+[ADR 0012](../arquitectura/decisiones/0012-declaracion-de-modulos-y-gating-por-ruta.md)
+§1 —el mismo que ya usa `ejemplo` para su ping—, y los permisos siguen el
+modelo de [ADR 0011](../arquitectura/decisiones/0011-autorizacion-por-roles-con-permisos-granulares.md)
+sin extenderlo. Es, a propósito, el complemento de R6: ahí la escritura
+era pública y la lectura protegida; acá la lectura es pública y la
+escritura protegida — las dos combinaciones ya cubiertas por los ADRs
+existentes, sin mecanismo nuevo.
+
+Incluye:
+- Módulo `boletin`, contratable por municipio. Publicar (`POST
+  /api/boletin`) requiere sesión y el permiso `boletin.publicar`, asignado
+  solo a `administrador` (no a `agente`): publicar una norma es un acto
+  legal del municipio, de mayor confianza que gestionar un reclamo —más
+  cerca, en sensibilidad, de administrar usuarios/roles que de operar el
+  día a día—. Listar (`GET /api/boletin`, con filtro opcional por `tipo`
+  y por texto en el título) es público, sin sesión: es exactamente lo que
+  "Boletín Oficial digital" significa.
+- Tipo fijo (ordenanza, decreto, resolución, comunicado), número (texto
+  libre que asigna el municipio: la numeración oficial correlativa es un
+  proceso legal fuera del alcance de esta rebanada, no se genera sola),
+  título, fecha de publicación, texto completo. Una vez publicada, una
+  norma no se edita ni se borra por esta rebanada: es un registro público
+  que se corrige publicando una norma nueva, no mutando la vieja
+  (coherente con diferir el versionado/derogación, más abajo).
+- Nombre y correo de quien publicó, capturados del actor autenticado al
+  momento de publicar (mismo criterio de "copia, no referencia" que ya usa
+  `registro_auditoria`, ADR 0013) — es la firma pública de la norma, no
+  una relación que haya que mantener viva.
+- Búsqueda simple: filtro por tipo y coincidencia de texto en el título
+  (`ILIKE`), sin motor de búsqueda full-text.
+- Pantalla pública de búsqueda/listado (accesible, sin cuenta) con la
+  acción de publicar visible solo para quien tiene `boletin.publicar`.
+- **Test de aislamiento**: una norma publicada en un municipio no es
+  visible desde otro.
+
+Queda fuera de R7, explícitamente diferido: adjuntos/archivos (el texto
+vive como contenido en la base, no como PDF), motor de búsqueda
+full-text, numeración correlativa automática, edición/derogación/
+versionado de una norma ya publicada, notificaciones de nuevas
+publicaciones, y —igual que en R6— cualquier integración con
+auditoría/notificaciones transversal más allá de lo que ya cubre este
+propio módulo.
 
 ## Epic: Fase 2 — Recaudación e integración
 

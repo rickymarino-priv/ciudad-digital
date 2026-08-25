@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 
+import { PantallaDeBoletin } from './boletin/PantallaDeBoletin'
 import { PantallaDeEjemplo } from './ejemplo/PantallaDeEjemplo'
 import { PantallaDeReclamos } from './reclamos/PantallaDeReclamos'
 import type { Modulo } from './useModulos'
@@ -24,4 +25,5 @@ export type PropsDePantallaDeModulo = {
 export const registroDePantallasDeModulo: Record<string, ComponentType<PropsDePantallaDeModulo>> = {
   ejemplo: PantallaDeEjemplo,
   reclamos: PantallaDeReclamos,
+  boletin: PantallaDeBoletin,
 }
