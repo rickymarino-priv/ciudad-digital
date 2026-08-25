@@ -26,7 +26,8 @@ diseñe cada fase.
 | CD-14 | R6 · Un vecino carga un reclamo y el municipio lo atiende — **terminada** |
 | CD-15 | R7 · El municipio publica una norma en el Boletín Oficial y cualquiera la encuentra |
 | CD-16 | R8 · Un vecino busca dónde está sepultado un familiar y el municipio administra el registro del cementerio |
-| CD-17 | R9 · Un vecino inicia un trámite en Mesa de Entradas y el municipio lo tramita |
+| CD-17 | R9 · Un vecino inicia un trámite en Mesa de Entradas y el municipio lo tramita — **terminada** |
+| CD-18 | R10 · Mesa de Entradas suma habilitación comercial simple y permiso de obra menor |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -399,6 +400,63 @@ correlativa oficial, generación del documento del certificado y firma
 electrónica, notificaciones al vecino de cambios de estado, y —igual que
 R6/R7/R8— cualquier integración con auditoría/notificaciones transversal
 más allá de lo que este propio módulo cubre.
+
+### R10 · Mesa de Entradas suma habilitación comercial simple y permiso de obra menor
+
+**Demo**: un vecino, sin sesión, entra al portal público de un municipio e
+inicia cualquiera de los tres trámites de Mesa de Entradas —certificado de
+domicilio, habilitación comercial simple o permiso de obra menor—,
+completando los campos propios de cada uno. Un agente de Mesa de Entradas,
+con sesión y el permiso `mesaentradas.gestionar`, ve cada trámite entrar a
+la cola y lo avanza por el circuito de estados que corresponde a su tipo
+—habilitación comercial simple pasa por un paso extra de inspección antes
+de aprobarse o rechazarse, los otros dos van directo de "en revisión" a un
+estado final—, quedando registrado en cada paso quién lo hizo y cuándo. El
+mismo trámite no aparece en el portal de otro municipio.
+
+R10 completa el subset de Trámites a Distancia que el
+[roadmap](roadmap-fases.md#fase-1--mvp-vendible--módulos-ancla) nombra
+para Fase 1 (certificado de domicilio + estos dos), sumando el segundo y
+tercer tipo de trámite al motor de expediente/workflow mínimo que R9
+(ADR 0015) dejó armado para esto. Confirma la premisa de ADR 0015: agregar
+un tipo de trámite —incluso uno con un paso adicional de circuito, como la
+inspección de habilitación comercial— es código y migración dentro de
+`mesaentradas`, sin tocar `Expediente`/`MovimientoDeExpediente`/
+`GestionDeExpedientes.avanzar`.
+
+Requiere ADR nuevo: [ADR 0016](../arquitectura/decisiones/0016-datos-propios-por-tipo-de-tramite-columnas-explicitas.md)
+resuelve el pendiente que ADR 0015 §3 había dejado abierto ("forma de los
+datos propios de un tipo de trámite cuando aparezca el segundo tipo
+real"): columnas explícitas y nullable en la propia tabla `expediente`,
+con un `check` de base de datos que las exige solo para el tipo que las
+usa — no JSON, no tabla propia por tipo, con 3 tipos y 1-2 campos propios
+cada uno delante.
+
+Incluye:
+- `TipoDeTramite.HABILITACION_COMERCIAL_SIMPLE`, con campos propios `rubro
+  comercial` y `dirección del local`, y su circuito propio: `INICIADO →
+  EN_REVISION → {INSPECCION, RECHAZADO}`, `INSPECCION → {APROBADO,
+  RECHAZADO}` — el nuevo estado `INSPECCION` se suma al enum común
+  `EstadoDeExpediente` (ADR 0015 §1: el enum es compartido, cada
+  `CircuitoDeTramite` decide cuáles usa).
+- `TipoDeTramite.PERMISO_OBRA_MENOR`, con campos propios `dirección de la
+  obra` y `descripción de la obra`, y el mismo circuito que certificado de
+  domicilio: `INICIADO → EN_REVISION → APROBADO/RECHAZADO`.
+- El formulario público de alta deja elegir el tipo de trámite y muestra
+  los campos propios de cada uno; el panel de gestión muestra el tipo y el
+  detalle propio de cada trámite en su fila, con el circuito de estados
+  correcto según el tipo de cada expediente.
+- **Test de aislamiento**: extendido (no duplicado) para probar que
+  también los campos propios de los tipos nuevos quedan aislados por
+  tenant.
+
+Queda fuera de R10, explícitamente diferido (igual criterio que R9,
+ADR 0015): circuitos configurables por municipio, seguimiento anónimo del
+trámite por token, giro entre áreas/derivación, caratulación y numeración
+correlativa oficial, generación de documentos y firma electrónica,
+notificaciones al vecino de cambios de estado, y cualquier integración con
+auditoría/notificaciones transversal más allá de lo que el propio módulo
+cubre.
 
 ## Epic: Fase 2 — Recaudación e integración
 

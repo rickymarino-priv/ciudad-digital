@@ -17,7 +17,9 @@ final class CircuitosDeTramite {
 
     /**
      * Certificado de domicilio: iniciado → en revisión → aprobado/rechazado,
-     * sin vuelta atrás. Único circuito de esta rebanada (backlog R9).
+     * sin vuelta atrás. Único circuito de la rebanada R9; permiso de obra
+     * menor (R10, backlog CD-18) reutiliza este mismo circuito, ver más
+     * abajo.
      */
     private static final CircuitoDeTramite CERTIFICADO_DOMICILIO = new CircuitoDeTramite(
             EstadoDeExpediente.INICIADO,
@@ -28,8 +30,34 @@ final class CircuitosDeTramite {
                     EstadoDeExpediente.APROBADO, EnumSet.noneOf(EstadoDeExpediente.class),
                     EstadoDeExpediente.RECHAZADO, EnumSet.noneOf(EstadoDeExpediente.class))));
 
-    private static final Map<TipoDeTramite, CircuitoDeTramite> CIRCUITOS =
-            Map.of(TipoDeTramite.CERTIFICADO_DOMICILIO, CERTIFICADO_DOMICILIO);
+    /**
+     * Habilitación comercial simple (backlog R10, ADR 0016): un paso más
+     * que certificado de domicilio, {@code INSPECCION} entre la revisión y
+     * la resolución final, aunque también se puede rechazar directo desde
+     * revisión sin pasar por inspección.
+     */
+    private static final CircuitoDeTramite HABILITACION_COMERCIAL_SIMPLE = new CircuitoDeTramite(
+            EstadoDeExpediente.INICIADO,
+            new EnumMap<>(Map.of(
+                    EstadoDeExpediente.INICIADO, EnumSet.of(EstadoDeExpediente.EN_REVISION),
+                    EstadoDeExpediente.EN_REVISION,
+                            EnumSet.of(EstadoDeExpediente.INSPECCION, EstadoDeExpediente.RECHAZADO),
+                    EstadoDeExpediente.INSPECCION,
+                            EnumSet.of(EstadoDeExpediente.APROBADO, EstadoDeExpediente.RECHAZADO),
+                    EstadoDeExpediente.APROBADO, EnumSet.noneOf(EstadoDeExpediente.class),
+                    EstadoDeExpediente.RECHAZADO, EnumSet.noneOf(EstadoDeExpediente.class))));
+
+    /**
+     * Permiso de obra menor (backlog R10): mismo circuito que certificado
+     * de domicilio, sin necesidad de un paso adicional solo para que se
+     * vea distinto.
+     */
+    private static final CircuitoDeTramite PERMISO_OBRA_MENOR = CERTIFICADO_DOMICILIO;
+
+    private static final Map<TipoDeTramite, CircuitoDeTramite> CIRCUITOS = Map.of(
+            TipoDeTramite.CERTIFICADO_DOMICILIO, CERTIFICADO_DOMICILIO,
+            TipoDeTramite.HABILITACION_COMERCIAL_SIMPLE, HABILITACION_COMERCIAL_SIMPLE,
+            TipoDeTramite.PERMISO_OBRA_MENOR, PERMISO_OBRA_MENOR);
 
     private CircuitosDeTramite() {
     }

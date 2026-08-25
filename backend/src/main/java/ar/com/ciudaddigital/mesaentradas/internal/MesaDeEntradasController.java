@@ -43,8 +43,11 @@ class MesaDeEntradasController {
     @PostMapping
     ResponseEntity<ExpedientePublicoResponse> iniciar(@RequestBody IniciarExpedienteRequest request) {
         TipoDeTramite tipo = tipoDe(request.tipo());
-        ExpedienteEntity expediente = gestion.iniciar(
-                tipo, request.solicitanteNombre(), request.solicitanteContacto(), request.domicilioACertificar());
+        DatosPropiosDelTramite datos = new DatosPropiosDelTramite(
+                request.domicilioACertificar(), request.rubroComercial(), request.direccionLocal(),
+                request.direccionObra(), request.descripcionObra());
+        ExpedienteEntity expediente =
+                gestion.iniciar(tipo, request.solicitanteNombre(), request.solicitanteContacto(), datos);
         return ResponseEntity.status(HttpStatus.CREATED).body(ExpedientePublicoResponse.de(expediente));
     }
 
@@ -105,7 +108,14 @@ class MesaDeEntradasController {
     }
 
     record IniciarExpedienteRequest(
-            String tipo, String solicitanteNombre, String solicitanteContacto, String domicilioACertificar) {
+            String tipo,
+            String solicitanteNombre,
+            String solicitanteContacto,
+            String domicilioACertificar,
+            String rubroComercial,
+            String direccionLocal,
+            String direccionObra,
+            String descripcionObra) {
     }
 
     record AvanzarEstadoRequest(String estado, String comentario) {
@@ -133,6 +143,10 @@ class MesaDeEntradasController {
             String solicitanteNombre,
             String solicitanteContacto,
             String domicilioACertificar,
+            String rubroComercial,
+            String direccionLocal,
+            String direccionObra,
+            String descripcionObra,
             Instant creadoEn,
             Instant actualizadoEn,
             List<MovimientoResponse> movimientos) {
@@ -145,6 +159,10 @@ class MesaDeEntradasController {
                     expediente.getSolicitanteNombre(),
                     expediente.getSolicitanteContacto(),
                     expediente.getDomicilioACertificar(),
+                    expediente.getRubroComercial(),
+                    expediente.getDireccionLocal(),
+                    expediente.getDireccionObra(),
+                    expediente.getDescripcionObra(),
                     expediente.getCreadoEn(),
                     expediente.getActualizadoEn(),
                     expediente.getMovimientos().stream().map(MovimientoResponse::de).toList());

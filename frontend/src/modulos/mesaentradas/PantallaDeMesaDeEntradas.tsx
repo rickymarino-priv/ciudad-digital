@@ -5,7 +5,9 @@ import type { Usuario } from '../../acceso/useSesion'
 import type { PropsDePantallaDeModulo } from '../registro'
 import type { Modulo } from '../useModulos'
 
-type Estado = 'INICIADO' | 'EN_REVISION' | 'APROBADO' | 'RECHAZADO'
+type Estado = 'INICIADO' | 'EN_REVISION' | 'INSPECCION' | 'APROBADO' | 'RECHAZADO'
+
+type TipoDeTramite = 'CERTIFICADO_DOMICILIO' | 'HABILITACION_COMERCIAL_SIMPLE' | 'PERMISO_OBRA_MENOR'
 
 type Movimiento = {
   estadoAnterior: Estado | null
@@ -18,11 +20,15 @@ type Movimiento = {
 
 type Expediente = {
   id: number
-  tipo: 'CERTIFICADO_DOMICILIO'
+  tipo: TipoDeTramite
   estado: Estado
   solicitanteNombre: string
   solicitanteContacto: string | null
-  domicilioACertificar: string
+  domicilioACertificar: string | null
+  rubroComercial: string | null
+  direccionLocal: string | null
+  direccionObra: string | null
+  descripcionObra: string | null
   creadoEn: string
   actualizadoEn: string
   movimientos: Movimiento[]
@@ -30,7 +36,7 @@ type Expediente = {
 
 type RespuestaAlta = {
   id: number
-  tipo: 'CERTIFICADO_DOMICILIO'
+  tipo: TipoDeTramite
   estado: Estado
   creadoEn: string
 }
@@ -38,20 +44,42 @@ type RespuestaAlta = {
 const ETIQUETA_ESTADO: Record<Estado, string> = {
   INICIADO: 'Iniciado',
   EN_REVISION: 'En revisión',
+  INSPECCION: 'En inspección',
   APROBADO: 'Aprobado',
   RECHAZADO: 'Rechazado',
 }
 
-// Mismo mapa de transiciones válidas que valida el backend
-// (CircuitosDeTramite, ADR 0015), definido acá localmente para el único
-// tipo de trámite que esta pantalla conoce hoy (CERTIFICADO_DOMICILIO):
-// acá solo decide qué opciones ofrecer en el `<select>`, el enforcement
-// real sigue siendo del backend (ADR 0011).
-const TRANSICIONES_VALIDAS: Record<Estado, Estado[]> = {
-  INICIADO: ['EN_REVISION'],
-  EN_REVISION: ['APROBADO', 'RECHAZADO'],
-  APROBADO: [],
-  RECHAZADO: [],
+const ETIQUETA_TIPO: Record<TipoDeTramite, string> = {
+  CERTIFICADO_DOMICILIO: 'Certificado de domicilio',
+  HABILITACION_COMERCIAL_SIMPLE: 'Habilitación comercial simple',
+  PERMISO_OBRA_MENOR: 'Permiso de obra menor',
+}
+
+// Mismos circuitos que valida el backend (CircuitosDeTramite, ADR 0015),
+// uno por tipo de trámite: acá solo decide qué opciones ofrecer en el
+// `<select>`, el enforcement real sigue siendo del backend (ADR 0011).
+const TRANSICIONES_VALIDAS: Record<TipoDeTramite, Record<Estado, Estado[]>> = {
+  CERTIFICADO_DOMICILIO: {
+    INICIADO: ['EN_REVISION'],
+    EN_REVISION: ['APROBADO', 'RECHAZADO'],
+    INSPECCION: [],
+    APROBADO: [],
+    RECHAZADO: [],
+  },
+  PERMISO_OBRA_MENOR: {
+    INICIADO: ['EN_REVISION'],
+    EN_REVISION: ['APROBADO', 'RECHAZADO'],
+    INSPECCION: [],
+    APROBADO: [],
+    RECHAZADO: [],
+  },
+  HABILITACION_COMERCIAL_SIMPLE: {
+    INICIADO: ['EN_REVISION'],
+    EN_REVISION: ['INSPECCION', 'RECHAZADO'],
+    INSPECCION: ['APROBADO', 'RECHAZADO'],
+    APROBADO: [],
+    RECHAZADO: [],
+  },
 }
 
 const FECHA = new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' })
@@ -72,6 +100,22 @@ function textoContacto(expediente: Expediente): string {
 function textoMovimiento(movimiento: Movimiento): string {
   const actor = movimiento.actorNombre ?? 'Alta pública'
   return `${FECHA.format(new Date(movimiento.fecha))} — ${ETIQUETA_ESTADO[movimiento.estadoNuevo]} (${actor})`
+}
+
+/**
+ * Detalle legible de los campos propios de cada tipo de trámite (ADR
+ * 0016): una rama por tipo, igual que el `switch` de validación del
+ * backend — agregar un tipo cuarto agrega un `case` acá.
+ */
+function textoDetalle(expediente: Expediente): string {
+  switch (expediente.tipo) {
+    case 'CERTIFICADO_DOMICILIO':
+      return expediente.domicilioACertificar ?? ''
+    case 'HABILITACION_COMERCIAL_SIMPLE':
+      return `Rubro: ${expediente.rubroComercial ?? ''} · Local: ${expediente.direccionLocal ?? ''}`
+    case 'PERMISO_OBRA_MENOR':
+      return `Obra en ${expediente.direccionObra ?? ''}: ${expediente.descripcionObra ?? ''}`
+  }
 }
 
 /**
@@ -102,9 +146,14 @@ type PropsFormulario = {
 }
 
 function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
+  const [tipo, setTipo] = useState<TipoDeTramite>('CERTIFICADO_DOMICILIO')
   const [solicitanteNombre, setSolicitanteNombre] = useState('')
   const [solicitanteContacto, setSolicitanteContacto] = useState('')
   const [domicilioACertificar, setDomicilioACertificar] = useState('')
+  const [rubroComercial, setRubroComercial] = useState('')
+  const [direccionLocal, setDireccionLocal] = useState('')
+  const [direccionObra, setDireccionObra] = useState('')
+  const [descripcionObra, setDescripcionObra] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmacion, setConfirmacion] = useState<RespuestaAlta | null>(null)
@@ -137,6 +186,16 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
     }
   }, [confirmacion])
 
+  /** Cambiar de tipo resetea los campos propios de los otros tipos. */
+  function cambiarTipo(nuevoTipo: TipoDeTramite) {
+    setTipo(nuevoTipo)
+    setDomicilioACertificar('')
+    setRubroComercial('')
+    setDireccionLocal('')
+    setDireccionObra('')
+    setDescripcionObra('')
+  }
+
   async function enviarTramite(evento: FormEvent) {
     evento.preventDefault()
     setError(null)
@@ -147,10 +206,14 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
         '/api/mesaentradas',
         'POST',
         {
-          tipo: 'CERTIFICADO_DOMICILIO',
+          tipo,
           solicitanteNombre,
           solicitanteContacto: solicitanteContacto.trim() === '' ? null : solicitanteContacto,
-          domicilioACertificar,
+          domicilioACertificar: tipo === 'CERTIFICADO_DOMICILIO' ? domicilioACertificar : null,
+          rubroComercial: tipo === 'HABILITACION_COMERCIAL_SIMPLE' ? rubroComercial : null,
+          direccionLocal: tipo === 'HABILITACION_COMERCIAL_SIMPLE' ? direccionLocal : null,
+          direccionObra: tipo === 'PERMISO_OBRA_MENOR' ? direccionObra : null,
+          descripcionObra: tipo === 'PERMISO_OBRA_MENOR' ? descripcionObra : null,
         },
         'No se pudo registrar el trámite.',
       )
@@ -162,6 +225,10 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
         setSolicitanteNombre('')
         setSolicitanteContacto('')
         setDomicilioACertificar('')
+        setRubroComercial('')
+        setDireccionLocal('')
+        setDireccionObra('')
+        setDescripcionObra('')
       }
     } catch (fallo: unknown) {
       if (!vigente.current) {
@@ -187,8 +254,9 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
         {modulo?.nombre ?? 'Mesa de Entradas'}
       </h1>
       <p className="contenido__bajada">
-        Iniciá acá tu trámite de certificado de domicilio. No hace falta
-        que tengas cuenta ni que inicies sesión.
+        Iniciá acá tu trámite de certificado de domicilio, habilitación
+        comercial simple o permiso de obra menor. No hace falta que tengas
+        cuenta ni que inicies sesión.
       </p>
 
       <div className="formulario__acciones">
@@ -215,6 +283,22 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
         )}
 
         <div className="campo">
+          <label htmlFor="tramite-tipo">Tipo de trámite</label>
+          <select
+            id="tramite-tipo"
+            required
+            value={tipo}
+            onChange={(evento) => cambiarTipo(evento.target.value as TipoDeTramite)}
+          >
+            {(Object.keys(ETIQUETA_TIPO) as TipoDeTramite[]).map((opcion) => (
+              <option key={opcion} value={opcion}>
+                {ETIQUETA_TIPO[opcion]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="campo">
           <label htmlFor="tramite-solicitante-nombre">Nombre y apellido</label>
           <input
             id="tramite-solicitante-nombre"
@@ -224,23 +308,6 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? idDelError : undefined}
           />
-        </div>
-
-        <div className="campo">
-          <label htmlFor="tramite-domicilio">Domicilio a certificar</label>
-          <textarea
-            id="tramite-domicilio"
-            required
-            value={domicilioACertificar}
-            onChange={(evento) => setDomicilioACertificar(evento.target.value)}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? `${idDelError} tramite-domicilio-ayuda` : 'tramite-domicilio-ayuda'}
-          />
-          <p className="campo__ayuda" id="tramite-domicilio-ayuda">
-            Es el domicilio sobre el que el municipio va a emitir el
-            certificado: indicalo completo, con la referencia más precisa
-            que puedas.
-          </p>
         </div>
 
         <div className="campo">
@@ -257,6 +324,90 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
             formato exigido.
           </p>
         </div>
+
+        {tipo === 'CERTIFICADO_DOMICILIO' && (
+          <div className="campo">
+            <label htmlFor="tramite-domicilio">Domicilio a certificar</label>
+            <textarea
+              id="tramite-domicilio"
+              required
+              value={domicilioACertificar}
+              onChange={(evento) => setDomicilioACertificar(evento.target.value)}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? `${idDelError} tramite-domicilio-ayuda` : 'tramite-domicilio-ayuda'}
+            />
+            <p className="campo__ayuda" id="tramite-domicilio-ayuda">
+              Es el domicilio sobre el que el municipio va a emitir el
+              certificado: indicalo completo, con la referencia más precisa
+              que puedas.
+            </p>
+          </div>
+        )}
+
+        {tipo === 'HABILITACION_COMERCIAL_SIMPLE' && (
+          <>
+            <div className="campo">
+              <label htmlFor="tramite-rubro">Rubro del comercio</label>
+              <input
+                id="tramite-rubro"
+                required
+                value={rubroComercial}
+                onChange={(evento) => setRubroComercial(evento.target.value)}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? `${idDelError} tramite-rubro-ayuda` : 'tramite-rubro-ayuda'}
+              />
+              <p className="campo__ayuda" id="tramite-rubro-ayuda">
+                Por ejemplo, kiosco, restaurante, peluquería.
+              </p>
+            </div>
+
+            <div className="campo">
+              <label htmlFor="tramite-direccion-local">Dirección del local a habilitar</label>
+              <input
+                id="tramite-direccion-local"
+                required
+                value={direccionLocal}
+                onChange={(evento) => setDireccionLocal(evento.target.value)}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? idDelError : undefined}
+              />
+            </div>
+          </>
+        )}
+
+        {tipo === 'PERMISO_OBRA_MENOR' && (
+          <>
+            <div className="campo">
+              <label htmlFor="tramite-direccion-obra">Dirección de la obra</label>
+              <input
+                id="tramite-direccion-obra"
+                required
+                value={direccionObra}
+                onChange={(evento) => setDireccionObra(evento.target.value)}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? idDelError : undefined}
+              />
+            </div>
+
+            <div className="campo">
+              <label htmlFor="tramite-descripcion-obra">Descripción de la obra</label>
+              <textarea
+                id="tramite-descripcion-obra"
+                required
+                value={descripcionObra}
+                onChange={(evento) => setDescripcionObra(evento.target.value)}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={
+                  error ? `${idDelError} tramite-descripcion-obra-ayuda` : 'tramite-descripcion-obra-ayuda'
+                }
+              />
+              <p className="campo__ayuda" id="tramite-descripcion-obra-ayuda">
+                Qué se va a hacer: por ejemplo, arreglo de vereda, cerco,
+                revoque de fachada.
+              </p>
+            </div>
+          </>
+        )}
 
         <div className="formulario__acciones">
           <button type="submit" className="boton" disabled={enviando} aria-busy={enviando}>
@@ -361,7 +512,7 @@ function PanelDeGestion({ modulo, usuario, onVolver }: PropsGestion) {
   }, [edicion?.error])
 
   function abrirEdicion(expediente: Expediente) {
-    const opciones = TRANSICIONES_VALIDAS[expediente.estado]
+    const opciones = TRANSICIONES_VALIDAS[expediente.tipo][expediente.estado]
     if (opciones.length === 0) {
       return
     }
@@ -453,7 +604,8 @@ function PanelDeGestion({ modulo, usuario, onVolver }: PropsGestion) {
               <tr>
                 <th scope="col">Solicitante</th>
                 <th scope="col">Contacto</th>
-                <th scope="col">Domicilio a certificar</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Detalle del trámite</th>
                 <th scope="col">Estado</th>
                 <th scope="col">Historial</th>
                 <th scope="col">Creado</th>
@@ -463,13 +615,14 @@ function PanelDeGestion({ modulo, usuario, onVolver }: PropsGestion) {
             <tbody>
               {estado.expedientes.map((expediente) => {
                 const enEdicion = edicion && edicion.id === expediente.id ? edicion : null
-                const opcionesValidas = TRANSICIONES_VALIDAS[expediente.estado]
+                const opcionesValidas = TRANSICIONES_VALIDAS[expediente.tipo][expediente.estado]
 
                 return (
                   <tr key={expediente.id}>
                     <th scope="row">{expediente.solicitanteNombre}</th>
                     <td>{textoContacto(expediente)}</td>
-                    <td>{expediente.domicilioACertificar}</td>
+                    <td>{ETIQUETA_TIPO[expediente.tipo]}</td>
+                    <td>{textoDetalle(expediente)}</td>
                     <td>{ETIQUETA_ESTADO[expediente.estado]}</td>
                     <td>
                       <ul className="lista-compacta">

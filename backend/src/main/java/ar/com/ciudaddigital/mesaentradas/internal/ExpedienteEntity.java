@@ -26,9 +26,12 @@ import jakarta.persistence.Table;
  * es obligatorio —a diferencia de {@code reclamos.nombreContacto}, un
  * certificado se emite a nombre de alguien—, {@code solicitanteContacto} es
  * opcional, mismo criterio que {@code reclamos.contacto} (ADR 0014 §4).
- * {@code domicilioACertificar} es, hoy, el único dato propio de
- * {@code CERTIFICADO_DOMICILIO}: columna explícita, no JSON de datos
- * variables por tipo (ADR 0015 §3).
+ * Los cinco campos propios de los tres tipos de trámite
+ * ({@code domicilioACertificar}, {@code rubroComercial},
+ * {@code direccionLocal}, {@code direccionObra}, {@code descripcionObra})
+ * son columnas explícitas nullable, cada una obligatoria solo para su
+ * tipo —garantizado por el {@code check} de la migración, no por la
+ * columna sola— en vez de un JSON de datos variables por tipo (ADR 0016).
  *
  * <p>El historial de movimientos vive siempre junto al expediente (ADR 0015
  * §2): no hace falta un repositorio propio para
@@ -56,8 +59,20 @@ class ExpedienteEntity {
     @Column(name = "solicitante_contacto", length = 200)
     private String solicitanteContacto;
 
-    @Column(name = "domicilio_a_certificar", nullable = false, length = 300)
+    @Column(name = "domicilio_a_certificar", length = 300)
     private String domicilioACertificar;
+
+    @Column(name = "rubro_comercial", length = 200)
+    private String rubroComercial;
+
+    @Column(name = "direccion_local", length = 300)
+    private String direccionLocal;
+
+    @Column(name = "direccion_obra", length = 300)
+    private String direccionObra;
+
+    @Column(name = "descripcion_obra", length = 500)
+    private String descripcionObra;
 
     @Column(name = "creado_en", nullable = false)
     private Instant creadoEn;
@@ -81,14 +96,18 @@ class ExpedienteEntity {
     }
 
     static ExpedienteEntity nuevo(TipoDeTramite tipo, String solicitanteNombre, String solicitanteContacto,
-            String domicilioACertificar) {
+            DatosPropiosDelTramite datos) {
 
         ExpedienteEntity expediente = new ExpedienteEntity();
         expediente.tipo = tipo;
         expediente.estado = CircuitosDeTramite.de(tipo).estadoInicial();
         expediente.solicitanteNombre = solicitanteNombre;
         expediente.solicitanteContacto = solicitanteContacto;
-        expediente.domicilioACertificar = domicilioACertificar;
+        expediente.domicilioACertificar = datos.domicilioACertificar();
+        expediente.rubroComercial = datos.rubroComercial();
+        expediente.direccionLocal = datos.direccionLocal();
+        expediente.direccionObra = datos.direccionObra();
+        expediente.descripcionObra = datos.descripcionObra();
         expediente.creadoEn = Instant.now();
         expediente.actualizadoEn = expediente.creadoEn;
         expediente.agregarMovimiento(MovimientoDeExpedienteEntity.deAlta(expediente.estado));
@@ -117,6 +136,22 @@ class ExpedienteEntity {
 
     String getDomicilioACertificar() {
         return domicilioACertificar;
+    }
+
+    String getRubroComercial() {
+        return rubroComercial;
+    }
+
+    String getDireccionLocal() {
+        return direccionLocal;
+    }
+
+    String getDireccionObra() {
+        return direccionObra;
+    }
+
+    String getDescripcionObra() {
+        return descripcionObra;
     }
 
     Instant getCreadoEn() {
