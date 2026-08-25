@@ -25,6 +25,7 @@ diseñe cada fase.
 | CD-13 | R5 · Algo pasa y queda registrado — **terminada** |
 | CD-14 | R6 · Un vecino carga un reclamo y el municipio lo atiende — **terminada** |
 | CD-15 | R7 · El municipio publica una norma en el Boletín Oficial y cualquiera la encuentra |
+| CD-16 | R8 · Un vecino busca dónde está sepultado un familiar y el municipio administra el registro del cementerio |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -250,6 +251,80 @@ versionado de una norma ya publicada, notificaciones de nuevas
 publicaciones, y —igual que en R6— cualquier integración con
 auditoría/notificaciones transversal más allá de lo que ya cubre este
 propio módulo.
+
+### R8 · Un vecino busca dónde está sepultado un familiar y el municipio administra el registro del cementerio
+
+**Demo**: un vecino, sin sesión, busca en el portal público de un
+municipio el nombre de un familiar fallecido y encuentra dónde está
+sepultado (tipo de parcela, sector, fila, número). Un agente municipal,
+con sesión y el permiso `cementerio.registrar`, carga un nuevo registro
+de inhumación. El registro aparece de inmediato en la búsqueda pública.
+El mismo registro no aparece en el portal de otro municipio.
+
+De los tres candidatos que quedaban de Fase 1 (Mesa de Entradas + subset
+de Trámites a Distancia, Transparencia activa básica, Cementerio), R8
+elige **Cementerio**: el [catálogo funcional](catalogo-funcional.md) lo
+califica de "complejidad baja-media, buen módulo chico con valor real",
+mientras que Mesa de Entradas es "complejidad alta, columna vertebral del
+sistema" y cada trámite de Trámites a Distancia "tiene su propio circuito
+y requisitos" — exactamente el problema que el motor de expediente/
+workflow configurable existe para resolver, y que sigue sin construirse.
+Forzar Mesa de Entradas a esta rebanada habría significado, otra vez,
+diseñar el motor genérico a las apuradas sobre un caso que lo necesita de
+verdad, o resolverlo con un campo de estado propio que le queda chico (a
+diferencia de Reclamos, ADR 0014 §3, acá sí hay circuitos que varían por
+tipo de trámite). Transparencia activa básica, por su parte, depende de
+"si el municipio tiene los datos digitalizados"
+([roadmap](roadmap-fases.md#fase-1--mvp-vendible--módulos-ancla)): la
+forma de los datos de presupuesto/sueldos es un riesgo de producto que
+todavía no tiene municipio piloto que lo valide, no algo que convenga
+inventar en el vacío. El motor de expediente/workflow sigue pendiente;
+Mesa de Entradas sigue como su candidato natural para cuando se construya.
+
+No requiere ADR nuevo: es, otra vez, el mismo patrón que R7 (lectura
+pública sin sesión + escritura protegida por sesión y permiso), cubierto
+por [ADR 0011](../arquitectura/decisiones/0011-autorizacion-por-roles-con-permisos-granulares.md)
+y [ADR 0012](../arquitectura/decisiones/0012-declaracion-de-modulos-y-gating-por-ruta.md)
+§1 sin extenderlos. A diferencia de Reclamos, ni siquiera hay estado ni
+transiciones: registrar una sepultura es un alta y listo, más simple
+todavía.
+
+Incluye:
+- Módulo `cementerio`, contratable por municipio. Registrar (`POST
+  /api/cementerio`) requiere sesión y el permiso `cementerio.registrar`,
+  asignado a **ambos** roles de sistema (administrador y agente): es
+  funcionalidad operativa real del personal del cementerio desde el día
+  uno, mismo criterio que `reclamos.gestionar` (ADR 0014 §8), no un acto
+  legal como `boletin.publicar`. Buscar (`GET /api/cementerio`, con
+  filtro opcional por tipo de parcela y por nombre del difunto) es
+  público, sin sesión.
+- Un registro de sepultura por inhumación: tipo de parcela (nicho,
+  panteón, parcela, bóveda), sector, fila (opcional), número, nombre del
+  difunto, fecha de fallecimiento, fecha de inhumación, y —privados,
+  fuera de la búsqueda pública— nombre y contacto del titular de la
+  concesión y observaciones. Sin motor de workflow ni entidad de parcela
+  separada: modelo flat, mismo criterio que ADR 0014 §3 usa para
+  Reclamos, aplicado acá de entrada porque tampoco hace falta un segundo
+  caso real que lo justifique.
+- La búsqueda pública devuelve un DTO reducido, sin los datos privados
+  del titular ni de quien registró el alta: minimización de datos de
+  terceros, no un descuido — el titular/contacto/observaciones solo se
+  ven en la respuesta del alta, a quien la acaba de cargar.
+- Pantalla pública de búsqueda (accesible, sin cuenta) con la acción de
+  registrar visible solo para quien tiene `cementerio.registrar`, mismo
+  patrón de UI que `boletin` (R7): una única vista, no dos pantallas
+  alternativas.
+- **Test de aislamiento**: una sepultura registrada en un municipio no es
+  visible desde otro.
+
+Queda fuera de R8, explícitamente diferido: gestión de concesiones
+(renovación, transferencia de titularidad, vencimiento), más de un
+registro de inhumación por parcela a lo largo del tiempo (no hay entidad
+de parcela normalizada todavía), un panel protegido con los datos
+completos más allá del momento del alta, edición/borrado de un registro
+ya cargado, adjuntos/documentación, geolocalización del cementerio o de
+las parcelas, y —igual que en R6/R7— cualquier integración con
+auditoría/notificaciones transversal.
 
 ## Epic: Fase 2 — Recaudación e integración
 
