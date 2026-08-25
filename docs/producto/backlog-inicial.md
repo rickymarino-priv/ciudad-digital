@@ -28,6 +28,7 @@ diseñe cada fase.
 | CD-16 | R8 · Un vecino busca dónde está sepultado un familiar y el municipio administra el registro del cementerio |
 | CD-17 | R9 · Un vecino inicia un trámite en Mesa de Entradas y el municipio lo tramita — **terminada** |
 | CD-18 | R10 · Mesa de Entradas suma habilitación comercial simple y permiso de obra menor |
+| CD-19 | R11 · Transparencia activa básica: presupuesto y escala salarial públicos |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -457,6 +458,98 @@ correlativa oficial, generación de documentos y firma electrónica,
 notificaciones al vecino de cambios de estado, y cualquier integración con
 auditoría/notificaciones transversal más allá de lo que el propio módulo
 cubre.
+
+### R11 · Transparencia activa básica: presupuesto y escala salarial públicos
+
+**Demo**: un agente del municipio con sesión y el permiso
+`transparencia.publicar` publica una partida presupuestaria (año, área,
+número, concepto, monto asignado y, opcionalmente, monto ejecutado) y una
+entrada de escala salarial (año, área, cargo/función, cantidad de cargos y
+monto bruto mensual). Un vecino, sin sesión, entra al portal público de
+ese municipio, filtra por año y por texto, y encuentra ambos registros. El
+mismo dato no aparece en el portal de otro municipio.
+
+R11 cierra la lista original de candidatos de Fase 1
+([roadmap](roadmap-fases.md#fase-1--mvp-vendible--módulos-ancla)): con
+R6-R10 ya construidos, Transparencia activa básica es el único que
+quedaba sin construir, diferido en R8 porque dependía de "si el municipio
+tiene los datos digitalizados" y de un municipio piloto real que todavía
+no existe. Para esta primera rebanada se adopta el mismo criterio que ya
+rige para todo el producto en esta etapa: los municipios de demostración
+(`sanmartin`, `moron`, y los que arma cada test) se cargan con datos
+**sembrados/de ejemplo** vía el propio endpoint de publicación, igual que
+ya se demuestran `boletin` y `cementerio` — no hace falta esperar a un
+piloto real para tener algo demostrable. La forma real que exija un
+municipio piloto (otro layout de partidas, otro nomenclador) es un
+problema para cuando ese piloto exista, no algo que convenga inventar en
+el vacío ahora.
+
+No requiere ADR nuevo: mismo patrón que R7/R8, ya cubierto por
+[ADR 0011](../arquitectura/decisiones/0011-autorizacion-por-roles-con-permisos-granulares.md)
+(permisos) y
+[ADR 0012](../arquitectura/decisiones/0012-declaracion-de-modulos-y-gating-por-ruta.md)
+§1 (`rutasDeLecturaPublica()`): lectura pública sin sesión, escritura
+protegida por sesión y permiso. Sin estado ni transiciones, igual que
+`cementerio` (R8): publicar un dato de transparencia es un alta y listo.
+
+Incluye:
+- Módulo `transparencia`, contratable por municipio, con dos recursos
+  independientes bajo el mismo prefijo de API: **presupuesto**
+  (`POST`/`GET /api/transparencia/presupuesto`) y **sueldos**
+  (`POST`/`GET /api/transparencia/sueldos`). Publicar cualquiera de los
+  dos requiere sesión y el permiso `transparencia.publicar`, asignado
+  **solo a `administrador`** (no a `agente`): publicar cifras oficiales de
+  presupuesto o de masa salarial es un acto de transparencia institucional
+  del municipio, mismo criterio de sensibilidad que `boletin.publicar`
+  (R7) — más cerca de un acto legal/institucional que de la operación
+  diaria de `reclamos`/`cementerio`. Buscar es público, sin sesión, en
+  ambos recursos.
+- Partida presupuestaria: año, área/dependencia, número de partida (texto
+  libre que asigna el municipio, mismo criterio que el número de norma en
+  `boletin`), concepto, monto asignado y monto ejecutado (opcional: no
+  todos los municipios lo llevan al día). Una vez publicada, no se edita
+  ni se borra por esta rebanada — se corrige publicando un registro nuevo,
+  mismo criterio que `boletin`.
+- Entrada de escala salarial: año, área/dependencia, cargo o función,
+  cantidad de cargos que ocupan esa posición y monto bruto mensual **por
+  cargo**, no por persona. **Decisión deliberada de minimización de
+  datos**: esta rebanada publica sueldos agregados por cargo/función
+  (cuántos cargos hay y cuánto gana cada uno en bruto), nunca un monto
+  vinculado al nombre de una persona concreta — ni siquiera de
+  funcionarios políticos, cuyo nombre público sí requeriría una decisión
+  de producto propia (qué funcionarios se nombran, con qué respaldo legal
+  por provincia) que no conviene tomar en esta primera rebanada sin un
+  municipio real que la valide. Mismo criterio de minimización que ya usó
+  `cementerio` (R8) con el titular/contacto de la concesión, aplicado acá
+  a que el dato salarial nunca se registra vinculado a un nombre de
+  persona en la base, no solo que se oculte en la respuesta.
+- Quien publica cada registro queda identificado en la respuesta
+  (`publicadoPorNombre`/`publicadoPorEmail`, copia del actor autenticado
+  al momento de publicar, mismo criterio "copia, no referencia" que
+  `registro_auditoria`/`norma`, ADR 0013): es la firma pública del acto
+  administrativo de publicar el dato, no un dato de un tercero — mismo
+  criterio que `boletin`, a diferencia de `cementerio` donde sí se oculta
+  en la respuesta pública.
+- Búsqueda simple en ambos recursos: filtro por año (exacto) y texto libre
+  en área/concepto (presupuesto) o área/cargo (sueldos), vía `ILIKE`, sin
+  motor de búsqueda full-text.
+- Pantalla pública única (accesible, sin cuenta) con dos secciones —
+  Presupuesto y Sueldos— cada una con su propia búsqueda y, para quien
+  tiene `transparencia.publicar`, su propia acción de publicar, mismo
+  patrón de "una pantalla, vistas según permiso" que `boletin`/`cementerio`.
+- **Test de aislamiento**: un dato de presupuesto o de escala salarial
+  publicado en un municipio no es visible desde otro, para ambos recursos.
+
+Queda fuera de R11, explícitamente diferido: sueldos vinculados a
+funcionarios nombrados (ver la decisión de minimización, arriba),
+ejecución presupuestaria detallada por partida a lo largo del año
+(seguimiento temporal, gráficos), licitaciones abiertas y declaraciones
+juradas (otros ítems que el catálogo agrupa bajo "Transparencia activa"
+pero que son módulos propios, no esta rebanada), adjuntos/documentos
+(presupuesto en PDF oficial), motor de búsqueda full-text, edición/borrado
+de un registro ya publicado, y —igual que R6/R7/R8/R9/R10— cualquier
+integración con auditoría/notificaciones transversal más allá de lo que
+el propio módulo cubre.
 
 ## Epic: Fase 2 — Recaudación e integración
 
