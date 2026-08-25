@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 
 import { PantallaDeBoletin } from './boletin/PantallaDeBoletin'
+import { PantallaDeCementerio } from './cementerio/PantallaDeCementerio'
 import { PantallaDeEjemplo } from './ejemplo/PantallaDeEjemplo'
 import { PantallaDeReclamos } from './reclamos/PantallaDeReclamos'
 import type { Modulo } from './useModulos'
@@ -26,4 +27,5 @@ export const registroDePantallasDeModulo: Record<string, ComponentType<PropsDePa
   ejemplo: PantallaDeEjemplo,
   reclamos: PantallaDeReclamos,
   boletin: PantallaDeBoletin,
+  cementerio: PantallaDeCementerio,
 }
