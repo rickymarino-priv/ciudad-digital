@@ -22,7 +22,8 @@ diseñe cada fase.
 | CD-10 | R2 · Un municipio se da de alta desde cero — **terminada** |
 | CD-11 | R3 · Un usuario entra a su municipio — **terminada** |
 | CD-12 | R4 · Un módulo se prende y se apaga — **terminada** |
-| CD-13 | R5 · Algo pasa y queda registrado |
+| CD-13 | R5 · Algo pasa y queda registrado — **terminada** |
+| CD-14 | R6 · Un vecino carga un reclamo y el municipio lo atiende |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -141,7 +142,57 @@ Cementerio. Bajo acoplamiento con sistemas legados: no depende de la capa
 de adaptadores.
 
 Incluye además el motor de expediente/workflow y el framework de
-reportes/BI, construidos junto al primer módulo que los consume.
+reportes/BI, construidos junto al primer módulo que los consume — que
+**no** es Reclamos (R6): su ciclo de estado es fijo e igual para todos los
+municipios, no necesita circuitos configurables por área
+([ADR 0014](../arquitectura/decisiones/0014-reclamos-ciudadanos-alta-publica-anonima-y-estado-propio.md)
+§3). El motor sigue pendiente hasta que aparezca el primer módulo que sí
+lo necesite (candidato: Mesa de Entradas).
+
+Reclamos ciudadanos (311) es el módulo ancla que abre la fase, por ser el
+primero listado en el roadmap, de complejidad baja-media y alto impacto,
+y por ser el candidato natural para ocupar el lugar de `ejemplo` (R4)
+como sujeto real de los tests de gating (ADR 0012 §10). R6 **no** retira
+`ejemplo` ni migra `EntitlementDeModulosTest` a `reclamos`: ver "Queda
+fuera de R6", más abajo.
+
+### R6 · Un vecino carga un reclamo y el municipio lo atiende
+
+**Demo**: un vecino anónimo carga un reclamo (bache, alumbrado, poda,
+residuos, animales sueltos) desde el portal público de un municipio, sin
+iniciar sesión. Un agente de ese municipio inicia sesión, ve el reclamo
+entrar en el panel de reclamos, lo pasa a "en proceso" y después a
+"resuelto". El mismo reclamo no aparece en el portal del otro municipio.
+
+Incluye:
+- Módulo `reclamos`, contratable por municipio, con alta anónima vía
+  `POST /api/reclamos` sin sesión
+  ([ADR 0014](../arquitectura/decisiones/0014-reclamos-ciudadanos-alta-publica-anonima-y-estado-propio.md)
+  §1) y listado/detalle/cambio de estado protegidos por sesión y permiso
+  (`reclamos.ver`, `reclamos.gestionar`).
+- Categoría fija (bache, alumbrado, poda/arbolado, residuos, animales
+  sueltos, otro), descripción, dirección en texto libre y datos de
+  contacto opcionales del vecino.
+- Estado con transiciones fijas (nuevo → en proceso → resuelto/
+  rechazado), sin motor de workflow configurable (ADR 0014 §3).
+- Pantalla pública de alta (accesible, sin cuenta) y panel de gestión
+  para el personal del municipio.
+- **Test de aislamiento**: un reclamo cargado en un municipio no es
+  visible ni editable desde otro.
+
+Queda fuera de R6, explícitamente diferido (ADR 0014): geolocalización
+estructurada, seguimiento del reclamo por el vecino anónimo, integración
+con notificaciones/auditoría transversal, asignación a un agente
+particular, y rate limiting sobre el alta pública.
+
+También queda fuera de R6, como tarea de limpieza aparte que no cambia
+comportamiento de producto: **retirar el módulo `ejemplo`** (backend,
+frontend, migración de baja de su permiso) y migrar
+`EntitlementDeModulosTest` para que use `reclamos` como sujeto del test
+del mecanismo de gating en lugar de `ejemplo`. Mantenerla separada evita
+que R6 mezcle una rebanada de producto con una tarea de housekeeping sin
+valor de demo propio; `ejemplo` sigue activo y sin tocar hasta que esa
+tarea se haga.
 
 ## Epic: Fase 2 — Recaudación e integración
 

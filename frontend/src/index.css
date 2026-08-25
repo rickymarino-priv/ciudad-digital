@@ -289,7 +289,8 @@ body {
 }
 
 .campo input,
-.campo textarea {
+.campo textarea,
+.campo select {
   padding: 0.5rem 0.75rem;
   border: 2px solid color-mix(in srgb, var(--color-texto) 35%, transparent);
   border-radius: var(--radio);
@@ -308,7 +309,8 @@ body {
   resize: vertical;
 }
 
-.campo input[aria-invalid='true'] {
+.campo input[aria-invalid='true'],
+.campo select[aria-invalid='true'] {
   border-color: var(--color-error);
 }
 

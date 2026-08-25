@@ -1,10 +1,14 @@
 import type { ComponentType } from 'react'
 
 import { PantallaDeEjemplo } from './ejemplo/PantallaDeEjemplo'
+import { PantallaDeReclamos } from './reclamos/PantallaDeReclamos'
 import type { Modulo } from './useModulos'
+import type { Usuario } from '../acceso/useSesion'
 
 export type PropsDePantallaDeModulo = {
   modulo?: Modulo
+  /** Usuario con sesión iniciada en este municipio, o `null` si es anónimo. */
+  usuario: Usuario | null
   onVolver: () => void
 }
 
@@ -19,4 +23,5 @@ export type PropsDePantallaDeModulo = {
  */
 export const registroDePantallasDeModulo: Record<string, ComponentType<PropsDePantallaDeModulo>> = {
   ejemplo: PantallaDeEjemplo,
+  reclamos: PantallaDeReclamos,
 }

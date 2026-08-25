@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
 import { enviar, ErrorDeApi, pedir } from '../../acceso/api'
-import type { Modulo } from '../useModulos'
+import type { PropsDePantallaDeModulo } from '../registro'
 
 type RespuestaPing = {
   modulo: string
@@ -25,12 +25,6 @@ type EstadoPing =
   | { estado: 'no-contratado'; moduloDelError: string }
   | { estado: 'error'; mensaje: string }
 
-type Props = {
-  /** Entrada del catálogo que corresponde a este módulo, si ya cargó. */
-  modulo?: Modulo
-  onVolver: () => void
-}
-
 const FECHA = new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'medium' })
 
 /** Mismo texto para el aviso de "no contratado" en el ping y en el eco. */
@@ -48,7 +42,7 @@ function mensajeModuloNoContratado(nombreModulo: string): string {
  * demostración de que ocultar en el frontend no es enforcement (ADR 0009):
  * la pantalla se abre igual, y el backend rechaza el pedido.
  */
-export function PantallaDeEjemplo({ modulo, onVolver }: Props) {
+export function PantallaDeEjemplo({ modulo, usuario: _usuario, onVolver }: PropsDePantallaDeModulo) {
   const [ping, setPing] = useState<EstadoPing>({ estado: 'cargando' })
   const [mensaje, setMensaje] = useState('')
   const [enviando, setEnviando] = useState(false)
