@@ -4,6 +4,8 @@ import java.io.Serializable;
 import java.security.Principal;
 import java.util.Set;
 
+import ar.com.ciudaddigital.acceso.ActorAutenticado;
+
 /**
  * Quién está usando la sesión y qué puede hacer.
  *
@@ -15,9 +17,19 @@ import java.util.Set;
  * usuario autenticado sin depender de este tipo, que es interno de {@code
  * acceso}. Sin esto, {@code getName()} caería en {@code Object#toString()}
  * del record.
+ *
+ * <p>También implementa {@link ActorAutenticado}, la vista pública mínima
+ * (id, nombre, email) que otros módulos pueden castear desde
+ * {@code Authentication#getPrincipal()} cuando necesitan algo más que el
+ * email de {@code getName()} —por ejemplo, la firma de quien publicó una
+ * norma en {@code boletin}— sin poder referenciar este tipo, que sigue
+ * siendo interno de {@code acceso}. Los accesores que el record genera
+ * automáticamente para {@code id}, {@code nombre} y {@code email} ya
+ * coinciden con los de la interfaz, así que no hace falta escribir nada
+ * más para satisfacerla.
  */
 record UsuarioAutenticado(Long id, String nombre, String email, Set<String> permisos)
-        implements Serializable, Principal {
+        implements Serializable, Principal, ActorAutenticado {
 
     UsuarioAutenticado {
         permisos = Set.copyOf(permisos);
