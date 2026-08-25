@@ -18,5 +18,16 @@ services:
       timeout: 5s
       retries: 10
 
+  mailpit:
+    image: axllent/mailpit
+    container_name: ciudad-digital-mailpit
+    # Servidor SMTP falso para desarrollo (ADR 0013 §3): el email de
+    # bienvenida del módulo notificaciones se manda acá, no a una casilla
+    # real. Puerto 1025 para SMTP (spring.mail.host/port), 8025 para la
+    # bandeja web donde se ve lo enviado.
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
 volumes:
   postgres-data:

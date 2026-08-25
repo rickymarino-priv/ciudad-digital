@@ -7,6 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.io.IOException;
 import java.net.URI;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Comparator;
 
@@ -22,6 +25,9 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+
+import com.icegreen.greenmail.util.GreenMail;
+import com.icegreen.greenmail.util.ServerSetup;
 
 /**
  * Base de los tests de integración: levanta un Postgres real y apunta ahí
@@ -54,8 +60,20 @@ public abstract class SoporteDeIntegracion {
     private static final PostgreSQLContainer POSTGRES =
             new PostgreSQLContainer("postgres:16-alpine");
 
+    /**
+     * Servidor SMTP falso, embebido en el proceso de test, para el módulo
+     * {@code notificaciones} (ADR 0013 §3): los tests no pueden depender de
+     * un servidor real en la red, igual que Postgres de arriba se levanta
+     * en un contenedor propio en vez de contra una base compartida.
+     * Puerto 0: que el sistema operativo asigne uno libre, igual criterio
+     * que el resto de esta clase usa puertos mapeados dinámicamente.
+     */
+    protected static final GreenMail SERVIDOR_SMTP_FALSO =
+            new GreenMail(new ServerSetup(0, "localhost", ServerSetup.PROTOCOL_SMTP));
+
     static {
         POSTGRES.start();
+        SERVIDOR_SMTP_FALSO.start();
     }
 
     @Autowired
@@ -66,6 +84,9 @@ public abstract class SoporteDeIntegracion {
         registro.add("ciudad.control.url", POSTGRES::getJdbcUrl);
         registro.add("ciudad.control.usuario", POSTGRES::getUsername);
         registro.add("ciudad.control.password", POSTGRES::getPassword);
+
+        registro.add("spring.mail.host", () -> "localhost");
+        registro.add("spring.mail.port", () -> SERVIDOR_SMTP_FALSO.getSmtp().getPort());
 
         registro.add("ciudad.tenants.servidor", SoporteDeIntegracion::servidorDeTenants);
         registro.add("ciudad.tenants.usuario", POSTGRES::getUsername);
@@ -211,5 +232,16 @@ public abstract class SoporteDeIntegracion {
     /** Request al portal de un municipio, identificado por su subdominio. */
     protected static URI portalDe(String subdominio, String ruta) {
         return URI.create("http://" + subdominio + ".localhost" + ruta);
+    }
+
+    /**
+     * Conexión JDBC directa a la base de un municipio de prueba, para
+     * inspeccionar tablas que un mecanismo transversal escribe por su
+     * cuenta (ADR 0013, {@code event_publication}) y que no tienen una API
+     * propia para leerlas.
+     */
+    protected Connection conectarComoTenant(String slug) throws SQLException {
+        return DriverManager.getConnection(
+                servidorDeTenants() + "tenant_" + slug, POSTGRES.getUsername(), POSTGRES.getPassword());
     }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 
+import { PanelDeAuditoria } from './PanelDeAuditoria'
 import { PanelDeRoles } from './PanelDeRoles'
 import { PanelDeUsuarios } from './PanelDeUsuarios'
 import type { Usuario } from './useSesion'
@@ -10,7 +11,7 @@ type Props = {
 }
 
 /**
- * Administración del municipio: usuarios y roles.
+ * Administración del municipio: usuarios, roles y registro de auditoría.
  *
  * Es su propia vista, separada del portal público (ADR 0011): antes vivía
  * inline en la página del portal, pero la administración no es algo que
@@ -21,6 +22,7 @@ export function PanelDeAdministracion({ usuario, onVolver }: Props) {
 
   const veUsuarios = puede('usuarios.ver') || puede('usuarios.administrar')
   const veRoles = puede('roles.ver') || puede('usuarios.administrar')
+  const veAuditoria = puede('auditoria.ver')
 
   const titulo = useRef<HTMLHeadingElement>(null)
 
@@ -34,7 +36,8 @@ export function PanelDeAdministracion({ usuario, onVolver }: Props) {
         Administración
       </h1>
       <p className="contenido__bajada">
-        Usuarios y roles con acceso al portal de este municipio.
+        Usuarios y roles con acceso al portal de este municipio, y el
+        registro de lo que se hizo.
       </p>
 
       <div className="formulario__acciones">
@@ -45,9 +48,10 @@ export function PanelDeAdministracion({ usuario, onVolver }: Props) {
 
       {veUsuarios && <PanelDeUsuarios puedeAdministrar={puede('usuarios.administrar')} />}
       {veRoles && <PanelDeRoles puedeAdministrar={puede('roles.administrar')} />}
+      {veAuditoria && <PanelDeAuditoria />}
 
-      {!veUsuarios && !veRoles && (
-        <p role="status">No tenés permisos para administrar usuarios ni roles.</p>
+      {!veUsuarios && !veRoles && !veAuditoria && (
+        <p role="status">No tenés permisos para administrar usuarios, roles ni auditoría.</p>
       )}
     </main>
   )

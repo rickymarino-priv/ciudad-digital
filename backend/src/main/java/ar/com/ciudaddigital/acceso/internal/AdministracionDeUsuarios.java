@@ -4,9 +4,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import ar.com.ciudaddigital.acceso.UsuarioCreado;
 
 /**
  * Alta y edición de los usuarios del municipio del request en curso
@@ -27,12 +32,14 @@ class AdministracionDeUsuarios {
     private final UsuarioRepository usuarios;
     private final RolRepository roles;
     private final PasswordEncoder encoder;
+    private final ApplicationEventPublisher eventos;
 
     AdministracionDeUsuarios(UsuarioRepository usuarios, RolRepository roles,
-            PasswordEncoder encoder) {
+            PasswordEncoder encoder, ApplicationEventPublisher eventos) {
         this.usuarios = usuarios;
         this.roles = roles;
         this.encoder = encoder;
+        this.eventos = eventos;
     }
 
     @Transactional("tenantTransactionManager")
@@ -51,7 +58,14 @@ class AdministracionDeUsuarios {
         UsuarioEntity usuario =
                 UsuarioEntity.nuevo(nombre.trim(), emailNormalizado, encoder.encode(password));
         usuario.asignarRoles(Set.copyOf(resolverRoles(idsDeRoles)));
-        return usuarios.save(usuario);
+        usuario = usuarios.save(usuario);
+
+        // Todavía dentro de la transacción: @TransactionalEventListener(AFTER_COMMIT)
+        // descarta por defecto los eventos publicados fuera de una
+        // transacción en curso (ADR 0013 §2).
+        eventos.publishEvent(eventoDeAlta(usuario));
+
+        return usuario;
     }
 
     @Transactional("tenantTransactionManager")
@@ -71,6 +85,23 @@ class AdministracionDeUsuarios {
             usuario.desactivar();
         }
         return usuarios.save(usuario);
+    }
+
+    /**
+     * El actor de la creación no es el usuario creado: es quien tiene la
+     * sesión abierta y ejecutó el alta. Solo {@code SecurityContextHolder}
+     * sabe quién hace el request (ADR 0013, alternativas consideradas).
+     */
+    private UsuarioCreado eventoDeAlta(UsuarioEntity usuarioCreado) {
+        Authentication autenticacion = SecurityContextHolder.getContext().getAuthentication();
+        if (!(autenticacion.getPrincipal() instanceof UsuarioAutenticado actor)) {
+            throw new IllegalStateException(
+                    "No hay un usuario autenticado para registrar como actor del alta.");
+        }
+
+        return new UsuarioCreado(
+                usuarioCreado.getId(), usuarioCreado.getNombre(), usuarioCreado.getEmail(),
+                actor.id(), actor.nombre(), actor.email());
     }
 
     private String validarNombreYEmail(String nombre, String email) {
