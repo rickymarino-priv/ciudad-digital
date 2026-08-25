@@ -47,4 +47,27 @@ public interface DescriptorDeModulo {
     default List<String> rutasDeLecturaPublica() {
         return List.of();
     }
+
+    /**
+     * Rutas de este módulo que aceptan {@code POST} sin sesión (p. ej.
+     * {@code /api/reclamos}): un alta que un vecino anónimo puede hacer,
+     * como cargar un reclamo sin cuenta (ADR 0014 §1).
+     *
+     * <p>La cadena de seguridad arma sus reglas de {@code permitAll}
+     * iterando el catálogo, igual que ya hace con
+     * {@link #rutasDeLecturaPublica()} para {@code GET}; declarar acá una
+     * ruta de alta pública es lo único que un módulo con escritura anónima
+     * necesita hacer, sin tocar {@code acceso.internal.ConfiguracionDeSeguridad}.
+     *
+     * <p><strong>Solo cubre {@code POST}.</strong> Nunca {@code PUT},
+     * {@code PATCH} ni {@code DELETE} públicos: sin una cuenta detrás no
+     * hay forma de verificar que quien edita o borra es quien creó. Alta
+     * sí, todo lo demás no (ADR 0014 §1).
+     *
+     * <p>Default vacío para que un módulo sin escritura pública no tenga
+     * que declarar nada.
+     */
+    default List<String> rutasDeEscrituraPublica() {
+        return List.of();
+    }
 }

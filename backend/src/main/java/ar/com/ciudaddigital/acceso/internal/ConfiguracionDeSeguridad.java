@@ -31,6 +31,13 @@ import ar.com.ciudaddigital.entitlement.CatalogoDeModulos;
  * <p>{@code /api/admin/**} no pasa por acá: tiene su propia cadena en
  * {@code tenants.internal.ConfiguracionDeSeguridadDePlataforma}, con
  * {@code @Order} menor para que se evalúe primero.
+ *
+ * <p>Además de {@code GET} sobre las rutas de lectura pública de cada
+ * módulo, también abre {@code POST} sobre las rutas de escritura pública
+ * que declaren (ADR 0014 §1): un alta anónima, como cargar un reclamo sin
+ * cuenta. El gating por entitlement sigue corriendo antes que esta cadena,
+ * así que un módulo no contratado sigue rechazando con 403
+ * {@code MODULO_NO_CONTRATADO} aunque la ruta esté acá.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
@@ -101,6 +108,14 @@ class ConfiguracionDeSeguridad {
                     catalogoDeModulos.catalogo().stream()
                             .flatMap(descriptor -> descriptor.rutasDeLecturaPublica().stream())
                             .forEach(ruta -> reglas.requestMatchers(HttpMethod.GET, ruta).permitAll());
+
+                    // Rutas de escritura pública (ADR 0014 §1): mismo
+                    // principio que arriba, pero solo POST — un alta
+                    // anónima, nunca una edición o un borrado sin cuenta
+                    // que lo respalde.
+                    catalogoDeModulos.catalogo().stream()
+                            .flatMap(descriptor -> descriptor.rutasDeEscrituraPublica().stream())
+                            .forEach(ruta -> reglas.requestMatchers(HttpMethod.POST, ruta).permitAll());
 
                     reglas.anyRequest().authenticated();
                 })

@@ -107,6 +107,9 @@ class ConfiguracionDePersistencia {
     /** Registro de auditoría del municipio (ADR 0013 §3). */
     static final String PAQUETE_AUDITORIA = "ar.com.ciudaddigital.auditoria";
 
+    /** Reclamos ciudadanos del municipio (ADR 0014). */
+    static final String PAQUETE_RECLAMOS = "ar.com.ciudaddigital.reclamos";
+
     /**
      * Entidad de Spring Modulith que registra las publicaciones de eventos
      * (tabla {@code event_publication}). Vive en la base de tenant, no en
@@ -133,7 +136,7 @@ class ConfiguracionDePersistencia {
 
     @Configuration(proxyBeanMethods = false)
     @EnableJpaRepositories(
-            basePackages = { PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA },
+            basePackages = { PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS },
             entityManagerFactoryRef = "tenantEntityManagerFactory",
             transactionManagerRef = "tenantTransactionManager")
     static class RepositoriosDeTenant {
@@ -205,7 +208,8 @@ class ConfiguracionDePersistencia {
     LocalContainerEntityManagerFactoryBean tenantEntityManagerFactory(DataSourceDeTenants tenantDataSource) {
         var emf = new LocalContainerEntityManagerFactoryBean();
         emf.setDataSource(tenantDataSource);
-        emf.setPackagesToScan(PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_EVENTOS);
+        emf.setPackagesToScan(
+                PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS, PAQUETE_EVENTOS);
         emf.setPersistenceUnitName("tenant");
         emf.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         emf.setJpaPropertyMap(propiedadesDeTenant());

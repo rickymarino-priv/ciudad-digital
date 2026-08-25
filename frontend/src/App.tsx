@@ -183,6 +183,7 @@ export default function App() {
       ) : vistaEfectiva.tipo === 'modulo' && ComponenteDeModulo ? (
         <ComponenteDeModulo
           modulo={moduloActual}
+          usuario={usuario}
           onVolver={() => setVista({ tipo: 'portal' })}
         />
       ) : (
