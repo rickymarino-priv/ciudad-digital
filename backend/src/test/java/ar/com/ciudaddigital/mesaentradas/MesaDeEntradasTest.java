@@ -186,6 +186,166 @@ class MesaDeEntradasTest extends SoporteDeIntegracion {
     }
 
     @Test
+    @DisplayName("alta pública de HABILITACION_COMERCIAL_SIMPLE: con rubroComercial/direccionLocal responde 201; "
+            + "sin alguno de los dos, 400")
+    void altaHabilitacionComercialSimpleValidaEInvalida() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "mesaentradas");
+
+        mvc.perform(iniciar(A, """
+                {"tipo":"HABILITACION_COMERCIAL_SIMPLE","solicitanteNombre":"Beto Comerciante",
+                 "rubroComercial":"Kiosco","direccionLocal":"Av. Colón 456"}"""))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.tipo").value("HABILITACION_COMERCIAL_SIMPLE"))
+                .andExpect(jsonPath("$.estado").value("INICIADO"));
+
+        mvc.perform(iniciar(A, """
+                {"tipo":"HABILITACION_COMERCIAL_SIMPLE","solicitanteNombre":"Beto Comerciante",
+                 "direccionLocal":"Av. Colón 456"}"""))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(iniciar(A, """
+                {"tipo":"HABILITACION_COMERCIAL_SIMPLE","solicitanteNombre":"Beto Comerciante",
+                 "rubroComercial":"Kiosco"}"""))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("alta pública de PERMISO_OBRA_MENOR: con direccionObra/descripcionObra responde 201; "
+            + "sin alguno de los dos, 400")
+    void altaPermisoObraMenorValidaEInvalida() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "mesaentradas");
+
+        mvc.perform(iniciar(A, """
+                {"tipo":"PERMISO_OBRA_MENOR","solicitanteNombre":"Carla Vecina",
+                 "direccionObra":"Belgrano 789","descripcionObra":"Arreglo de vereda"}"""))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.tipo").value("PERMISO_OBRA_MENOR"))
+                .andExpect(jsonPath("$.estado").value("INICIADO"));
+
+        mvc.perform(iniciar(A, """
+                {"tipo":"PERMISO_OBRA_MENOR","solicitanteNombre":"Carla Vecina",
+                 "descripcionObra":"Arreglo de vereda"}"""))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(iniciar(A, """
+                {"tipo":"PERMISO_OBRA_MENOR","solicitanteNombre":"Carla Vecina",
+                 "direccionObra":"Belgrano 789"}"""))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("circuito de HABILITACION_COMERCIAL_SIMPLE: INICIADO -> EN_REVISION -> INSPECCION -> APROBADO, "
+            + "y EN_REVISION -> APROBADO directo (saltando INSPECCION) da 400")
+    void circuitoHabilitacionComercialSimple() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "mesaentradas");
+        MockHttpSession administrador = iniciarSesionDeAdministrador(A);
+
+        Long id = iniciarExpedienteConCuerpo(A, """
+                {"tipo":"HABILITACION_COMERCIAL_SIMPLE","solicitanteNombre":"Beto Comerciante %s",
+                 "rubroComercial":"Kiosco","direccionLocal":"Av. Colón 456"}"""
+                .formatted(UUID.randomUUID()));
+
+        mvc.perform(avanzarEstado(A, administrador, id, "EN_REVISION", null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("EN_REVISION"));
+
+        mvc.perform(avanzarEstado(A, administrador, id, "INSPECCION", "Se agenda inspección"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("INSPECCION"));
+
+        mvc.perform(avanzarEstado(A, administrador, id, "APROBADO", "Inspección aprobada"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("APROBADO"));
+
+        // Misma rama de circuito, pero saltando INSPECCION directo a APROBADO
+        // desde EN_REVISION: es la transición que solo este tipo de trámite
+        // rechaza (los otros dos no tienen el estado INSPECCION).
+        Long otroId = iniciarExpedienteConCuerpo(A, """
+                {"tipo":"HABILITACION_COMERCIAL_SIMPLE","solicitanteNombre":"Beto Comerciante %s",
+                 "rubroComercial":"Kiosco","direccionLocal":"Av. Colón 456"}"""
+                .formatted(UUID.randomUUID()));
+
+        mvc.perform(avanzarEstado(A, administrador, otroId, "EN_REVISION", null))
+                .andExpect(status().isOk());
+        mvc.perform(avanzarEstado(A, administrador, otroId, "APROBADO", null))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("circuito de PERMISO_OBRA_MENOR: INICIADO -> EN_REVISION -> RECHAZADO, igual que el motor "
+            + "trata a CERTIFICADO_DOMICILIO sin código nuevo salvo el registro en CircuitosDeTramite")
+    void circuitoPermisoObraMenor() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "mesaentradas");
+        MockHttpSession administrador = iniciarSesionDeAdministrador(A);
+
+        Long id = iniciarExpedienteConCuerpo(A, """
+                {"tipo":"PERMISO_OBRA_MENOR","solicitanteNombre":"Carla Vecina %s",
+                 "direccionObra":"Belgrano 789","descripcionObra":"Arreglo de vereda"}"""
+                .formatted(UUID.randomUUID()));
+
+        mvc.perform(avanzarEstado(A, administrador, id, "EN_REVISION", null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("EN_REVISION"));
+
+        mvc.perform(avanzarEstado(A, administrador, id, "RECHAZADO", "Falta documentación"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("RECHAZADO"));
+    }
+
+    @Test
+    @DisplayName("listado protegido: cada expediente devuelve solo los campos propios de su tipo, null en los "
+            + "de los otros dos")
+    void listadoDevuelveNullEnCamposDeOtrosTipos() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "mesaentradas");
+        MockHttpSession administrador = iniciarSesionDeAdministrador(A);
+
+        String nombreObraMenor = "Carla Vecina " + UUID.randomUUID();
+        iniciarExpedienteConCuerpo(A, """
+                {"tipo":"PERMISO_OBRA_MENOR","solicitanteNombre":"%s",
+                 "direccionObra":"Belgrano 789","descripcionObra":"Arreglo de vereda"}"""
+                .formatted(nombreObraMenor));
+
+        ResultActions listado = mvc.perform(get(portalDe(A, "/api/mesaentradas")).session(administrador))
+                .andExpect(status().isOk());
+
+        Map<String, Object> expediente = expedienteDe(listado, nombreObraMenor);
+        assertEquals("Belgrano 789", expediente.get("direccionObra"));
+        assertEquals("Arreglo de vereda", expediente.get("descripcionObra"));
+        assertNull(expediente.get("domicilioACertificar"));
+        assertNull(expediente.get("rubroComercial"));
+        assertNull(expediente.get("direccionLocal"));
+    }
+
+    @Test
+    @DisplayName("alta con campos de otro tipo: se descartan en silencio, no rompen el alta ni quedan guardados")
+    void altaConCamposDeOtroTipoSeDescartanEnSilencio() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "mesaentradas");
+        MockHttpSession administrador = iniciarSesionDeAdministrador(A);
+
+        String nombre = "Vecino con campos de más " + UUID.randomUUID();
+        iniciarExpedienteConCuerpo(A, """
+                {"tipo":"CERTIFICADO_DOMICILIO","solicitanteNombre":"%s",
+                 "domicilioACertificar":"Calle 1","rubroComercial":"Kiosco","direccionObra":"Otra calle"}"""
+                .formatted(nombre));
+
+        ResultActions listado = mvc.perform(get(portalDe(A, "/api/mesaentradas")).session(administrador))
+                .andExpect(status().isOk());
+
+        Map<String, Object> expediente = expedienteDe(listado, nombre);
+        assertEquals("Calle 1", expediente.get("domicilioACertificar"));
+        assertNull(expediente.get("rubroComercial"));
+        assertNull(expediente.get("direccionLocal"));
+        assertNull(expediente.get("direccionObra"));
+        assertNull(expediente.get("descripcionObra"));
+    }
+
+    @Test
     @DisplayName("aislamiento: un expediente iniciado en un municipio no aparece en el listado del otro")
     void aislamientoEntreTenants() throws Exception {
         MockHttpSession plataforma = iniciarSesionDePlataforma();
@@ -205,8 +365,12 @@ class MesaDeEntradasTest extends SoporteDeIntegracion {
                 {"tipo":"CERTIFICADO_DOMICILIO","solicitanteNombre":"%s","domicilioACertificar":"Calle 1"}"""
                 .formatted(nombreDeA)))
                 .andExpect(status().isCreated());
+        // Municipio B con un tipo nuevo (backlog R10): confirma que las
+        // columnas propias de HABILITACION_COMERCIAL_SIMPLE/PERMISO_OBRA_MENOR
+        // también quedan cubiertas por la comparación cruzada de tenants.
         mvc.perform(iniciar(B, """
-                {"tipo":"CERTIFICADO_DOMICILIO","solicitanteNombre":"%s","domicilioACertificar":"Calle 2"}"""
+                {"tipo":"PERMISO_OBRA_MENOR","solicitanteNombre":"%s",
+                 "direccionObra":"Calle 2","descripcionObra":"Cerco perimetral"}"""
                 .formatted(nombreDeB)))
                 .andExpect(status().isCreated());
 
@@ -224,10 +388,20 @@ class MesaDeEntradasTest extends SoporteDeIntegracion {
     /** Movimientos del expediente cuyo solicitanteNombre matchea, leídos directo del JSON de respuesta. */
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> movimientosDe(ResultActions listado, String solicitanteNombre) throws Exception {
-        String cuerpo = listado.andReturn().getResponse().getContentAsString();
-        List<Map<String, Object>> coincidencias = JsonPath.read(
-                cuerpo, "$[?(@.solicitanteNombre == '" + solicitanteNombre + "')]");
+        List<Map<String, Object>> coincidencias = expedientesDe(listado, solicitanteNombre);
         return (List<Map<String, Object>>) coincidencias.get(0).get("movimientos");
+    }
+
+    /** El expediente cuyo solicitanteNombre matchea, leído directo del JSON de respuesta. */
+    private Map<String, Object> expedienteDe(ResultActions listado, String solicitanteNombre) throws Exception {
+        return expedientesDe(listado, solicitanteNombre).get(0);
+    }
+
+    private List<Map<String, Object>> expedientesDe(ResultActions listado, String solicitanteNombre)
+            throws Exception {
+
+        String cuerpo = listado.andReturn().getResponse().getContentAsString();
+        return JsonPath.read(cuerpo, "$[?(@.solicitanteNombre == '" + solicitanteNombre + "')]");
     }
 
     private MockHttpServletRequestBuilder iniciar(String subdominio, String cuerpo) {
@@ -250,9 +424,18 @@ class MesaDeEntradasTest extends SoporteDeIntegracion {
 
     /** Inicia un expediente sin sesión (alta pública) y devuelve su id. */
     private Long iniciarExpediente(String subdominio, String solicitanteNombre) throws Exception {
-        MvcResult resultado = mvc.perform(iniciar(subdominio, """
+        return iniciarExpedienteConCuerpo(subdominio, """
                 {"tipo":"CERTIFICADO_DOMICILIO","solicitanteNombre":"%s","domicilioACertificar":"San Martín 123"}"""
-                .formatted(solicitanteNombre)))
+                .formatted(solicitanteNombre));
+    }
+
+    /**
+     * Inicia un expediente de cualquier tipo sin sesión (alta pública) y
+     * devuelve su id, dado el cuerpo JSON completo (backlog R10: helper
+     * generalizado para no repetir un método de alta por tipo).
+     */
+    private Long iniciarExpedienteConCuerpo(String subdominio, String cuerpo) throws Exception {
+        MvcResult resultado = mvc.perform(iniciar(subdominio, cuerpo))
                 .andExpect(status().isCreated())
                 .andReturn();
 

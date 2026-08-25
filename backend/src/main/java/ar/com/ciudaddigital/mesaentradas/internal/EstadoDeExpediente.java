@@ -8,6 +8,11 @@ package ar.com.ciudaddigital.mesaentradas.internal;
 enum EstadoDeExpediente {
     INICIADO,
     EN_REVISION,
+    // Paso propio del circuito de HABILITACION_COMERCIAL_SIMPLE (backlog
+    // R10, ADR 0016): agregar un estado al enum compartido no toca el
+    // motor (GestionDeExpedientes.avanzar sigue siendo agnóstico), es
+    // exactamente el tipo de extensión que ADR 0015 anticipaba.
+    INSPECCION,
     APROBADO,
     RECHAZADO
 }
