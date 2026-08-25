@@ -74,6 +74,14 @@ posteriores:
 - El nombre de la rama referencia al ticket: clave de Jira más una
   descripción corta en kebab-case. Por ejemplo:
   `CD-12-alta-de-municipio-desde-cero`.
+- Los worktrees (`.claude/worktrees/`) tienen que arrancar con la misma
+  clave de ticket que la rama que contienen — por ejemplo
+  `CD-17-mesa-de-entradas`, o `CD-17-mesa-de-entradas-parte1` si hace
+  falta una rama apilada o un subrelease dentro de la misma rebanada. Nada
+  de nombres genéricos tipo `agent-<id>`: si un agente se lanza en un
+  worktree aislado antes de saber qué ticket le toca, hay que renombrarlo
+  (`git worktree move`) apenas se conozca la clave, para que quede
+  identificable de un vistazo entre varios worktrees activos.
 - El push va sobre esa rama, y de ahí sale un **PR contra `develop`**.
   Nunca se pushea a `develop` directamente.
 - El merge del PR lo hace **una persona**, no el agente. Una vez mergeado,
