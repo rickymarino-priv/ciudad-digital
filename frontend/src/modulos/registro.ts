@@ -5,6 +5,7 @@ import { PantallaDeCementerio } from './cementerio/PantallaDeCementerio'
 import { PantallaDeEjemplo } from './ejemplo/PantallaDeEjemplo'
 import { PantallaDeMesaDeEntradas } from './mesaentradas/PantallaDeMesaDeEntradas'
 import { PantallaDeReclamos } from './reclamos/PantallaDeReclamos'
+import { PantallaDeTasas } from './tasas/PantallaDeTasas'
 import { PantallaDeTransparencia } from './transparencia/PantallaDeTransparencia'
 import type { Modulo } from './useModulos'
 import type { Usuario } from '../acceso/useSesion'
@@ -32,4 +33,5 @@ export const registroDePantallasDeModulo: Record<string, ComponentType<PropsDePa
   cementerio: PantallaDeCementerio,
   mesaentradas: PantallaDeMesaDeEntradas,
   transparencia: PantallaDeTransparencia,
+  tasas: PantallaDeTasas,
 }
