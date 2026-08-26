@@ -29,7 +29,8 @@ diseñe cada fase.
 | CD-17 | R9 · Un vecino inicia un trámite en Mesa de Entradas y el municipio lo tramita — **terminada** |
 | CD-18 | R10 · Mesa de Entradas suma habilitación comercial simple y permiso de obra menor |
 | CD-19 | R11 · Transparencia activa básica: presupuesto y escala salarial públicos |
-| CD-20 | R12 · Un vecino sin sesión consulta el estado de su reclamo o trámite con el token que recibió al cargarlo |
+| CD-20 | R12 · Un vecino sin sesión consulta el estado de su reclamo o trámite con el token que recibió al cargarlo — **terminada** |
+| CD-21 | R13 · Un vecino paga una tasa municipal online |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -617,6 +618,85 @@ extender el mecanismo a otros módulos que todavía no lo necesitan.
 
 Tasas municipales + pago online, portal de proveedores, capa de adaptadores
 a sistemas legados, consola del proveedor (comercial).
+
+### R13 · Un vecino paga una tasa municipal online
+
+**Demo**: un agente municipal con sesión y el permiso `tasas.publicar` da
+de alta una tasa (número de cuenta, concepto, período, monto). Un vecino,
+sin sesión, busca por ese número de cuenta en el portal público de ese
+municipio y ve la tasa pendiente. La paga a través de un simulador de pago
+rotulado explícitamente como entorno de prueba (no un proveedor real) y,
+al aprobarlo, la tasa queda "Pagada" con fecha. El mismo número de cuenta y
+sus tasas no aparecen en el portal de otro municipio.
+
+R13 abre Fase 2 con el primer ítem del roadmap para esa fase, **Tasas
+municipales + pago online**, en vez de empezar por "capa de adaptadores a
+sistemas legados" como pieza aislada: esa capa, acotada a lo que esta
+rebanada necesita (una pasarela de pago), se construye adentro de R13 como
+la decisión de arquitectura que la habilita
+([ADR 0018](../arquitectura/decisiones/0018-pasarela-de-pago-simulada.md)),
+no como un ticket propio sin demo. Ningún municipio piloto tiene todavía
+credenciales reales de una pasarela de pago (Mercado Pago, Modo,
+PagoFácil/Rapipago) ni de AFIP/ARBA — bloquear la rebanada hasta
+conseguirlas repetiría el problema que el roadmap ya advierte
+explícitamente que hay que evitar. Se sigue el mismo criterio que R11
+(Transparencia activa: datos sembrados en vez de esperar un piloto real) y
+que el motor de notificaciones (R5, SMTP real contra Mailpit en dev): la
+integración con la pasarela vive detrás de una interfaz
+(`PasarelaDePago`), con un adaptador simulado que aprueba o rechaza el
+pago sin salir del sistema, y la integración con un proveedor real queda
+explícitamente diferida.
+
+Requiere [ADR 0018](../arquitectura/decisiones/0018-pasarela-de-pago-simulada.md):
+decide la interfaz `PasarelaDePago`, un módulo canon base nuevo `pagos`
+(mismo estatus que `seguimientoanonimo`, sin persistencia propia), un
+único adaptador activo (`PasarelaDePagoSimulada`, sin selección por
+proveedor todavía porque no existe un segundo caso real), y que el
+"checkout" simulado sea una vista in-app rotulada como entorno de prueba
+en vez de un sitio externo (no hay router de URLs en el frontend). No
+requiere ADR propio para el módulo `tasas`: reutiliza sin extenderlos los
+patrones ya fijados por
+[ADR 0011](../arquitectura/decisiones/0011-autorizacion-por-roles-con-permisos-granulares.md)/
+[ADR 0012](../arquitectura/decisiones/0012-declaracion-de-modulos-y-gating-por-ruta.md)
+(lectura pública + escritura protegida) y
+[ADR 0014](../arquitectura/decisiones/0014-reclamos-ciudadanos-alta-publica-anonima-y-estado-propio.md)
+§1 (escritura pública solo `POST`, aplicada acá también al endpoint de
+confirmación de pago).
+
+Incluye:
+- Módulo `tasas`, contratable por municipio. Publicar una tasa
+  (`POST /api/tasas`) requiere sesión y el permiso `tasas.publicar`,
+  asignado **solo a `administrador`**: es un acto fiscal del municipio
+  (crea una deuda exigible), mismo nivel de sensibilidad que
+  `boletin.publicar`/`transparencia.publicar`. Buscar por número de
+  cuenta (`GET /api/tasas?numeroCuenta=...`, parámetro obligatorio, sin
+  búsqueda abierta a todo el padrón) es público, sin sesión.
+- Una tasa: número de cuenta (identificador simple sembrado por el
+  municipio, sin padrón de contribuyentes real todavía), concepto,
+  período (texto libre), monto, estado (`PENDIENTE`/`PAGADA`) y fecha de
+  pago.
+- Pago online: `POST /api/tasas/{id}/pagos` (público, inicia el pago
+  contra `PasarelaDePago`) y `POST /api/tasas/pagos/confirmar` (público,
+  simula el webhook de la pasarela) — ambos reutilizan el mecanismo de
+  escritura pública solo-`POST` de ADR 0014 §1 para un propósito nuevo
+  (confirmación de un sistema externo, no alta anónima de un vecino).
+- Módulo `pagos`, canon base (no contratable): interfaz `PasarelaDePago` y
+  su único adaptador, `PasarelaDePagoSimulada`.
+- Pantalla pública de búsqueda y pago (accesible, sin cuenta), con la
+  acción de publicar una tasa visible solo para quien tiene
+  `tasas.publicar`, mismo patrón de "una pantalla, vistas según permiso"
+  que `boletin`/`cementerio`/`transparencia`.
+- **Test de aislamiento**: una tasa publicada en un municipio (y su pago)
+  no es visible ni confirmable desde otro.
+
+Queda fuera de R13, explícitamente diferido (ADR 0018): integración con un
+proveedor real de pasarela (Mercado Pago, Modo, PagoFácil/Rapipago) y sus
+credenciales, verificación de firma de webhook, padrón de contribuyentes
+real, panel de gestión de tasas más allá del alta (listado completo,
+edición, exención, plan de pagos/moratoria), capa de adaptadores a
+AFIP/ARBA o equivalente provincial, notificación de vencimientos o de pago
+al vecino, rate limiting sobre los endpoints públicos nuevos, y
+conciliación contable/Tesorería (Fase 3).
 
 ## Epic: Fase 3 — Compras y áreas normativamente pesadas
 

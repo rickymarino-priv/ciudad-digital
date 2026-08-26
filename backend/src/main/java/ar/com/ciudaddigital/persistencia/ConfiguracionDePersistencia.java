@@ -122,6 +122,9 @@ class ConfiguracionDePersistencia {
     /** Presupuesto y escala salarial de Transparencia Activa del municipio (backlog R11). */
     static final String PAQUETE_TRANSPARENCIA = "ar.com.ciudaddigital.transparencia";
 
+    /** Tasas municipales y su pago online del municipio (backlog R13, ADR 0018). */
+    static final String PAQUETE_TASAS = "ar.com.ciudaddigital.tasas";
+
     /**
      * Entidad de Spring Modulith que registra las publicaciones de eventos
      * (tabla {@code event_publication}). Vive en la base de tenant, no en
@@ -150,7 +153,7 @@ class ConfiguracionDePersistencia {
     @EnableJpaRepositories(
             basePackages = {
                     PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS, PAQUETE_BOLETIN,
-                    PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA },
+                    PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS },
             entityManagerFactoryRef = "tenantEntityManagerFactory",
             transactionManagerRef = "tenantTransactionManager")
     static class RepositoriosDeTenant {
@@ -224,7 +227,7 @@ class ConfiguracionDePersistencia {
         emf.setDataSource(tenantDataSource);
         emf.setPackagesToScan(
                 PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS, PAQUETE_BOLETIN,
-                PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_EVENTOS);
+                PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS, PAQUETE_EVENTOS);
         emf.setPersistenceUnitName("tenant");
         emf.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         emf.setJpaPropertyMap(propiedadesDeTenant());
