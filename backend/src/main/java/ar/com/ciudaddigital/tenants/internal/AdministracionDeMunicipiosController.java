@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -35,13 +36,16 @@ class AdministracionDeMunicipiosController {
     private final TenantRepository repositorio;
     private final MigradorDeTenant migrador;
     private final AdministracionDeModulos administracionDeModulos;
+    private final InformacionComercialDeMunicipios informacionComercial;
 
     AdministracionDeMunicipiosController(AltaDeMunicipio alta, TenantRepository repositorio,
-            MigradorDeTenant migrador, AdministracionDeModulos administracionDeModulos) {
+            MigradorDeTenant migrador, AdministracionDeModulos administracionDeModulos,
+            InformacionComercialDeMunicipios informacionComercial) {
         this.alta = alta;
         this.repositorio = repositorio;
         this.migrador = migrador;
         this.administracionDeModulos = administracionDeModulos;
+        this.informacionComercial = informacionComercial;
     }
 
     @PostMapping
@@ -147,6 +151,20 @@ class AdministracionDeMunicipiosController {
         return describirModulos(tenant);
     }
 
+    /**
+     * Edita el contrato mínimo de un municipio (ADR 0019): tramo
+     * poblacional y estado de facturación, con nota libre. Igual que los
+     * módulos, es una decisión comercial del proveedor, no del municipio.
+     */
+    @PatchMapping("/{slug}/comercial")
+    MunicipioResponse actualizarComercial(@PathVariable String slug,
+            @RequestBody ComercialRequest request) {
+        TenantEntity tenant = informacionComercial.actualizar(
+                slug, request.tramoPoblacional(), request.estadoFacturacion(),
+                request.notaFacturacion());
+        return describir(tenant);
+    }
+
     private ModulosDeMunicipioResponse describirModulos(TenantEntity tenant) {
         return new ModulosDeMunicipioResponse(
                 tenant.getSlug(), administracionDeModulos.describir(tenant));
@@ -157,13 +175,21 @@ class AdministracionDeMunicipiosController {
                 ? migrador.versionActual(tenant.getNombreBaseDatos())
                 : null;
 
+        int cantidadDeModulosContratados = tenant.getConfig() == null
+                ? 0
+                : tenant.getConfig().modulosHabilitados().size();
+
         return new MunicipioResponse(
                 tenant.getSlug(),
                 tenant.getNombreMunicipio(),
                 tenant.getSubdominio(),
                 tenant.getEstado().name(),
                 tenant.getNombreBaseDatos(),
-                version);
+                version,
+                tenant.getTramoPoblacional().name(),
+                tenant.getEstadoFacturacion().name(),
+                tenant.getNotaFacturacion(),
+                cantidadDeModulosContratados);
     }
 
     @ExceptionHandler(SolicitudInvalida.class)
@@ -193,13 +219,20 @@ class AdministracionDeMunicipiosController {
             String subdominio,
             String estado,
             String nombreBaseDatos,
-            String versionDeEsquema) {
+            String versionDeEsquema,
+            String tramoPoblacional,
+            String estadoFacturacion,
+            String notaFacturacion,
+            int cantidadDeModulosContratados) {
     }
 
     record MigracionResponse(String slug, String versionDeEsquema, String error) {
     }
 
     record ModulosRequest(List<String> modulos) {
+    }
+
+    record ComercialRequest(String tramoPoblacional, String estadoFacturacion, String notaFacturacion) {
     }
 
     record ModulosDeMunicipioResponse(String slug, List<ModuloDeMunicipio> modulos) {

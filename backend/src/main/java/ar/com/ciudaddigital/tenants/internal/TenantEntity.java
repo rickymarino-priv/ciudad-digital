@@ -50,6 +50,17 @@ class TenantEntity {
     @Column(columnDefinition = "jsonb")
     private TenantConfig config;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tramo_poblacional")
+    private TramoPoblacional tramoPoblacional;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado_facturacion")
+    private EstadoFacturacion estadoFacturacion;
+
+    @Column(name = "nota_facturacion")
+    private String notaFacturacion;
+
     protected TenantEntity() {
         // Requerido por JPA.
     }
@@ -71,11 +82,29 @@ class TenantEntity {
         tenant.estado = EstadoTenant.PENDIENTE;
         tenant.fechaAlta = OffsetDateTime.now();
         tenant.config = config;
+        // Un municipio nuevo arranca con el tramo intermedio y al día hasta
+        // que la plataforma diga lo contrario; no se pide en el alta (ADR
+        // 0019).
+        tenant.tramoPoblacional = TramoPoblacional.MEDIANO;
+        tenant.estadoFacturacion = EstadoFacturacion.AL_DIA;
+        tenant.notaFacturacion = null;
         return tenant;
     }
 
     void cambiarEstado(EstadoTenant nuevo) {
         this.estado = nuevo;
+    }
+
+    /**
+     * Fija los tres campos de contrato juntos: mismo criterio que
+     * {@link #cambiarConfig}, quien llama manda el valor completo, sin
+     * merge parcial.
+     */
+    void cambiarInformacionComercial(TramoPoblacional tramoPoblacional,
+            EstadoFacturacion estadoFacturacion, String notaFacturacion) {
+        this.tramoPoblacional = tramoPoblacional;
+        this.estadoFacturacion = estadoFacturacion;
+        this.notaFacturacion = notaFacturacion;
     }
 
     /**
@@ -125,5 +154,17 @@ class TenantEntity {
 
     TenantConfig getConfig() {
         return config;
+    }
+
+    TramoPoblacional getTramoPoblacional() {
+        return tramoPoblacional;
+    }
+
+    EstadoFacturacion getEstadoFacturacion() {
+        return estadoFacturacion;
+    }
+
+    String getNotaFacturacion() {
+        return notaFacturacion;
     }
 }

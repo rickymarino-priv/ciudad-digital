@@ -32,6 +32,7 @@ diseñe cada fase.
 | CD-20 | R12 · Un vecino sin sesión consulta el estado de su reclamo o trámite con el token que recibió al cargarlo — **terminada** |
 | CD-21 | R13 · Un vecino paga una tasa municipal online |
 | CD-22 | R14 · Una empresa se registra como proveedor del municipio y el municipio la aprueba |
+| CD-23 | R15 · El proveedor de la plataforma ve y gestiona el contrato de sus municipios clientes |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -780,6 +781,69 @@ documentación declarada; catálogo de licitaciones/compras y participación
 del proveedor en un proceso de compra (Fase 3); consola del proveedor
 cross-tenant (ver [modelo comercial](modelo-comercial.md)); y rate
 limiting sobre los endpoints públicos nuevos.
+
+### R15 · El proveedor de la plataforma ve y gestiona el contrato de sus municipios clientes
+
+**Demo**: un usuario de plataforma entra a `admin.localhost:5173` (fuera de
+cualquier portal municipal) e inicia sesión con sus credenciales de
+plataforma. Ve una lista de todos los municipios dados de alta, con su
+tramo poblacional, su estado de facturación y cuántos módulos tiene
+contratados cada uno. Entra al detalle de uno, prende un módulo nuevo y
+edita el estado de facturación con una nota. Vuelve a la lista y ve
+reflejados los cambios.
+
+El roadmap nombra este ítem "Consola del proveedor: contratos, módulos por
+municipio, estado de facturación" — ambiguo porque desde R14 el producto
+también tiene un actor llamado "proveedor" (la empresa que le vende al
+municipio). No es ese: [modelo-comercial.md](modelo-comercial.md)
+§"Superficies de administración" ya distingue la consola del proveedor
+(cross-tenant, el negocio de Ciudad Digital operando sobre sus municipios
+clientes) de la consola del municipio (intra-tenant, Fase 3), y R14 mismo
+había diferido explícitamente "consola del proveedor cross-tenant" como
+algo distinto de su propio alcance. R15 construye la primera.
+
+Requiere [ADR 0019](../arquitectura/decisiones/0019-consola-del-proveedor-ui-cross-tenant-y-contrato-minimo.md):
+resuelve dos pendientes que dejaron ADR 0009 y ADR 0012 §8 — granularidad
+del contrato (plan único por tenant: tramo poblacional + estado de
+facturación manual, sin fechas por módulo ni motor de facturación real,
+consistente con que la emisión de facturas queda fuera del sistema) y
+dónde vive la consola (mismo proyecto Vite/React del portal municipal, con
+un componente raíz propio montado según el host — `admin.localhost` en
+desarrollo —, no una aplicación separada). La API cross-tenant que
+necesita —alta/listado de municipios (ADR 0005, R2) y catálogo/entitlement
+de módulos (ADR 0012 §8, R4)— ya existía y se opera por API desde esas
+rebanadas; lo que R15 agrega es la UI (que no existía) y tres columnas
+mínimas de contrato/facturación.
+
+Incluye:
+- Tres columnas nuevas en `tenant` (base de control): `tramo_poblacional`
+  (`CHICO`/`MEDIANO`/`GRANDE`), `estado_facturacion` (`AL_DIA`/`ATRASADO`,
+  editado a mano, desacoplado del entitlement según ADR 0009), y
+  `nota_facturacion` (texto libre). Nuevo endpoint `PATCH
+  /api/admin/municipios/{slug}/comercial`.
+- `GET /api/admin/municipios` extendido con los tres campos más
+  `cantidadDeModulosContratados`, para que la lista de la consola no
+  necesite un pedido por fila.
+- Nueva superficie de frontend `frontend/src/plataforma/`: login de
+  plataforma, lista de municipios y detalle por municipio (módulos +
+  información comercial), montada en `admin.localhost` en vez del portal
+  municipal.
+- **Test de "quién puede llegar a esta vista"**: en vez de un test de
+  aislamiento entre tenants (esta vista es legítimamente cross-tenant por
+  diseño), se verifica que ni una sesión anónima ni una sesión de usuario
+  de un municipio pueden operar el nuevo endpoint — solo una sesión de
+  usuario de plataforma (ADR 0010), extendiendo la cobertura que ya existía
+  para el resto de `/api/admin/**`.
+
+Queda fuera de R15, explícitamente diferido (ADR 0019): motor de
+facturación real (importes, vencimientos, facturas emitidas), vigencia del
+contrato por módulo con fechas individuales, auditoría de quién cambió el
+tramo/facturación/módulos de un municipio y cuándo, alertas proactivas
+sobre municipios atrasados, permisos granulares dentro de la sesión de
+plataforma (hoy todo-o-nada), UI para alta de municipios o migración de
+esquema (siguen por API/`curl`), y cualquier dato operativo de un
+municipio (usuarios, reclamos, tasas, proveedores) — la consola no tiene
+ninguna vía para leerlos.
 
 ## Epic: Fase 3 — Compras y áreas normativamente pesadas
 
