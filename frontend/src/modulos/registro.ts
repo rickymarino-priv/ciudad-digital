@@ -4,6 +4,7 @@ import { PantallaDeBoletin } from './boletin/PantallaDeBoletin'
 import { PantallaDeCementerio } from './cementerio/PantallaDeCementerio'
 import { PantallaDeEjemplo } from './ejemplo/PantallaDeEjemplo'
 import { PantallaDeMesaDeEntradas } from './mesaentradas/PantallaDeMesaDeEntradas'
+import { PantallaDeMultas } from './multas/PantallaDeMultas'
 import { PantallaDeProveedores } from './proveedores/PantallaDeProveedores'
 import { PantallaDeReclamos } from './reclamos/PantallaDeReclamos'
 import { PantallaDeTasas } from './tasas/PantallaDeTasas'
@@ -36,4 +37,5 @@ export const registroDePantallasDeModulo: Record<string, ComponentType<PropsDePa
   transparencia: PantallaDeTransparencia,
   tasas: PantallaDeTasas,
   proveedores: PantallaDeProveedores,
+  multas: PantallaDeMultas,
 }

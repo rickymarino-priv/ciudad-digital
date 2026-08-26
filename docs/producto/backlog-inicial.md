@@ -34,6 +34,7 @@ diseñe cada fase.
 | CD-22 | R14 · Una empresa se registra como proveedor del municipio y el municipio la aprueba |
 | CD-23 | R15 · El proveedor de la plataforma ve y gestiona el contrato de sus municipios clientes |
 | CD-24 | R16 · Un proveedor se registra y el municipio ve su situación fiscal validada contra AFIP (simulado) |
+| CD-25 | R17 · Un agente de tránsito labra una multa y el vecino la paga con descuento, o la impugna (parent: CD-4) |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -909,6 +910,85 @@ fiscal del contribuyente).
 Compras y Contrataciones/Licitaciones, Presupuesto y Contabilidad,
 Tesorería, Legal y Técnica/Juzgado de Faltas, Tránsito y Transporte,
 consola del municipio.
+
+Fase de mayor riesgo legal/normativo del roadmap (cada provincia tiene su
+propio régimen); se aborda de a un módulo por vez, priorizando el que se
+puede diseñar sin inventar normativa (ver R17), y difiriendo los que sí la
+necesitan hasta tener un municipio piloto real.
+
+### R17 · Un agente de tránsito labra una multa y el vecino la paga con descuento, o la impugna
+
+**Demo**: un agente de tránsito (con sesión y permiso `multas.labrar`)
+labra una multa contra una patente, con un monto y una descripción de la
+infracción. Un vecino, sin sesión, la busca por patente o DNI, ve el
+monto vigente (con el 20% de descuento por pago voluntario si todavía
+está dentro de los 10 días de la notificación) y la paga con el
+simulador de `pagos` (ADR 0018) — queda `PAGADA`. En otro caso, el vecino
+presenta un descargo de texto libre; un administrador (con
+`multas.resolverDescargo`) lo revisa y confirma o anula la multa, y el
+vecino ve el resultado actualizado al volver a buscarla.
+
+Primera rebanada de Fase 3, elegida por descarte razonado de las otras
+dos candidatas obvias de la fase — **Compras y Contrataciones** y
+**Presupuesto y Contabilidad** quedan diferidas, ver más abajo. El motivo
+completo de la elección, y el diseño de estados/permisos, está en
+[ADR 0021](../arquitectura/decisiones/0021-multas-de-transito-alta-protegida-estado-propio-descuento-por-pago-temprano.md).
+
+Es la primera rebanada del proyecto donde **el municipio inicia el
+registro**, no el vecino (a diferencia de `reclamos`, `mesaentradas` y
+`proveedores`): el alta (`POST /api/multas`) es protegida por sesión y
+permiso, no pública.
+
+Incluye:
+- Módulo nuevo `multas`, contratable, con su propio modelo de estado
+  (`NOTIFICADA → PAGADA`, `NOTIFICADA → EN_DESCARGO → CONFIRMADA/ANULADA`,
+  `CONFIRMADA → PAGADA`) — decisión explícita de **no** reutilizar el
+  motor de expediente/workflow de Mesa de Entradas (ADR 0015): alta
+  protegida en vez de pública, y dos vías de cierre en vez de una
+  progresión lineal (ADR 0021 §1/§2).
+- Búsqueda pública por patente o DNI, mismo patrón que la búsqueda de
+  `tasas` por número de cuenta: identificador obligatorio, sin listado
+  abierto de todas las multas.
+- Pago online reutilizando `pagos`/`PasarelaDePago` (ADR 0018) tal cual,
+  sin extenderlo.
+- Descuento por pago voluntario temprano: 20% dentro de los 10 días
+  corridos desde la notificación, perdido para siempre si la multa pasó
+  por un descargo (ADR 0021 §8).
+- Descargo público (texto libre + contacto opcional) y su resolución
+  protegida, con dos permisos nuevos de sensibilidad distinta:
+  `multas.labrar` (administrador y agente, trabajo operativo cotidiano) y
+  `multas.resolverDescargo` (solo administrador, acto con impacto fiscal
+  y naturaleza cuasi-judicial — mismo criterio de reserva que
+  `tasas.publicar`, ADR 0018).
+- **Test de aislamiento**: una multa labrada en un municipio no es
+  buscable ni confirmable desde otro.
+- Pantalla accesible del módulo, con las mismas convenciones de foco y
+  anuncios (`role="status"`/`role="alert"`) que `PantallaDeTasas`.
+
+Especificación completa en [spec CD-25](../../specs/CD-25-multas-de-transito.md).
+
+Queda fuera de R17, explícitamente diferido (ver ADR 0021, Pendiente de
+definir): notificación al vecino de que se le labró una multa,
+identificación real de patente/titular contra un padrón real, notificación
+fehaciente del acta (edictos, plazos procesales provinciales), un segundo
+descargo sobre la misma multa, y un segundo tipo de infracción con
+circuito propio.
+
+### Compras y Contrataciones / Licitaciones — diferido
+
+Los montos que definen licitación pública/privada/concurso de precios/
+compra directa varían por provincia y por ordenanza municipal propia. Sin
+un municipio piloto real que aporte esos umbrales, cualquier valor sería
+inventado — queda sin desarrollar hasta tener ese caso real (ver
+ADR 0021, Contexto).
+
+### Presupuesto y Contabilidad — diferido
+
+La Provincia de Buenos Aires (y otras) ya proveen gratis un sistema
+homologado (RAFAM), con adopción muy alta en los municipios bonaerenses.
+Construirlo ahora compite con algo gratuito y adoptado, sin saber si el
+municipio piloto necesita integrarse con RAFAM o reemplazarlo — queda sin
+desarrollar hasta esa decisión (ver ADR 0021, Contexto).
 
 ## Epic: Fase 4 — Gestión territorial
 
