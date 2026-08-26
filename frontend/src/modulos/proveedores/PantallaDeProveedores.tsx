@@ -15,6 +15,11 @@ type Rubro =
 
 type Estado = 'PENDIENTE' | 'APROBADO' | 'RECHAZADO'
 
+/** Resultado (advisory, no bloqueante) de consultar el padrón fiscal
+ * simulado en el alta (ADR 0020). Solo llega en `ProveedorResponse`, nunca
+ * en las respuestas públicas del alta ni de la consulta por token. */
+type SituacionFiscal = 'ACTIVO' | 'INHABILITADO' | 'NO_ENCONTRADO'
+
 /** Respuesta de `GET /api/proveedores` (shape completo, `proveedores.ver`). */
 type Proveedor = {
   id: number
@@ -30,6 +35,7 @@ type Proveedor = {
   documentacionAdicional: string | null
   estado: Estado
   comentarioGestion: string | null
+  situacionFiscal: SituacionFiscal
   creadoEn: string
   actualizadoEn: string
 }
@@ -85,6 +91,15 @@ const ETIQUETA_ESTADO: Record<Estado, string> = {
   PENDIENTE: 'Pendiente',
   APROBADO: 'Aprobado',
   RECHAZADO: 'Rechazado',
+}
+
+// Texto explícito y accionable, no solo la palabra del enum (WCAG: nunca
+// solo color o ícono). Puramente informativo: no condiciona ni oculta
+// ninguna acción de gestión (ADR 0020 §3, advisory, no bloqueante).
+const ETIQUETA_SITUACION_FISCAL: Record<SituacionFiscal, string> = {
+  ACTIVO: 'Activo',
+  INHABILITADO: 'Inhabilitado — revisar antes de aprobar',
+  NO_ENCONTRADO: 'No encontrado en el padrón',
 }
 
 // Mismo mapa de transiciones válidas que valida el backend (mismo criterio
@@ -845,6 +860,7 @@ function PanelDeGestion({ modulo, usuario, onVolver }: PropsGestion) {
                 <th scope="col">Rubro</th>
                 <th scope="col">Contacto</th>
                 <th scope="col">Documentación declarada</th>
+                <th scope="col">Situación fiscal (AFIP)</th>
                 <th scope="col">Estado</th>
                 <th scope="col">Creado</th>
                 {puedeGestionar && <th scope="col">Acción</th>}
@@ -868,6 +884,7 @@ function PanelDeGestion({ modulo, usuario, onVolver }: PropsGestion) {
                         ))}
                       </ul>
                     </td>
+                    <td>{ETIQUETA_SITUACION_FISCAL[proveedor.situacionFiscal]}</td>
                     <td>{ETIQUETA_ESTADO[proveedor.estado]}</td>
                     <td>{FECHA.format(new Date(proveedor.creadoEn))}</td>
                     {puedeGestionar && (

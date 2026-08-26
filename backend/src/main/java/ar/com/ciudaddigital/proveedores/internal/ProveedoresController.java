@@ -184,7 +184,12 @@ class ProveedoresController {
         }
     }
 
-    /** Shape completo, solo para quien tiene {@code proveedores.ver}. */
+    /**
+     * Shape completo, solo para quien tiene {@code proveedores.ver}.
+     * {@code situacionFiscal} es información interna para la decisión del
+     * municipio (ADR 0020 §3): no aparece en {@link ProveedorPublicoResponse}
+     * ni en {@link SeguimientoDeProveedorResponse}.
+     */
     record ProveedorResponse(
             Long id,
             String razonSocial,
@@ -199,6 +204,7 @@ class ProveedoresController {
             String documentacionAdicional,
             String estado,
             String comentarioGestion,
+            String situacionFiscal,
             Instant creadoEn,
             Instant actualizadoEn) {
 
@@ -217,6 +223,7 @@ class ProveedoresController {
                     proveedor.getDocumentacionAdicional(),
                     proveedor.getEstado().name(),
                     proveedor.getComentarioGestion(),
+                    proveedor.getSituacionFiscal().name(),
                     proveedor.getCreadoEn(),
                     proveedor.getActualizadoEn());
         }

@@ -56,7 +56,10 @@ class ProveedoresTest extends SoporteDeIntegracion {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.estado").value("PENDIENTE"))
-                .andExpect(jsonPath("$.tokenDeSeguimiento").isNotEmpty());
+                .andExpect(jsonPath("$.tokenDeSeguimiento").isNotEmpty())
+                // situacionFiscal es información interna (ADR 0020 §3): no viaja
+                // en la confirmación pública del alta.
+                .andExpect(jsonPath("$.situacionFiscal").doesNotExist());
     }
 
     @Test
@@ -119,7 +122,10 @@ class ProveedoresTest extends SoporteDeIntegracion {
                 .andExpect(jsonPath("$.estado").value("PENDIENTE"))
                 .andExpect(jsonPath("$.emailContacto").doesNotExist())
                 .andExpect(jsonPath("$.telefonoContacto").doesNotExist())
-                .andExpect(jsonPath("$.domicilio").doesNotExist());
+                .andExpect(jsonPath("$.domicilio").doesNotExist())
+                // situacionFiscal es información interna (ADR 0020 §3): la
+                // consulta por token tampoco la expone.
+                .andExpect(jsonPath("$.situacionFiscal").doesNotExist());
     }
 
     @Test
@@ -227,6 +233,60 @@ class ProveedoresTest extends SoporteDeIntegracion {
     }
 
     @Test
+    @DisplayName("situación fiscal (ADR 0020): se calcula en el alta según el último dígito del CUIT, sin "
+            + "bloquear el alta en ninguno de los tres resultados posibles")
+    void situacionFiscalSeCalculaEnElAltaSinBloquearla() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "proveedores");
+        MockHttpSession administrador = iniciarSesionDeAdministrador(A);
+
+        Long idActivo = idDelAlta(mvc.perform(registrar(A, cuerpoDeAlta("Activa SA", cuitConUltimoDigito('2'))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.estado").value("PENDIENTE"))
+                .andReturn());
+
+        Long idInhabilitado = idDelAlta(
+                mvc.perform(registrar(A, cuerpoDeAlta("Inhabilitada SA", cuitAleatorio())))
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.estado").value("PENDIENTE"))
+                        .andReturn());
+
+        Long idNoEncontrado = idDelAlta(
+                mvc.perform(registrar(A, cuerpoDeAlta("No Encontrada SA", cuitConUltimoDigito('0'))))
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.estado").value("PENDIENTE"))
+                        .andReturn());
+
+        mvc.perform(get(portalDe(A, "/api/proveedores")).session(administrador))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == " + idActivo + ")].situacionFiscal").value("ACTIVO"))
+                .andExpect(jsonPath("$[?(@.id == " + idInhabilitado + ")].situacionFiscal").value("INHABILITADO"))
+                .andExpect(jsonPath("$[?(@.id == " + idNoEncontrado + ")].situacionFiscal").value("NO_ENCONTRADO"));
+    }
+
+    @Test
+    @DisplayName("un proveedor con situación fiscal INHABILITADO puede aprobarse igual: la situación fiscal "
+            + "no bloquea la aprobación (ADR 0020 §3)")
+    void situacionFiscalInhabilitadaNoBloqueaLaAprobacion() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "proveedores");
+        MockHttpSession administrador = iniciarSesionDeAdministrador(A);
+
+        // cuitAleatorio() siempre termina en '1' (impar): INHABILITADO.
+        Long id = idDelAlta(mvc.perform(registrar(A, cuerpoDeAlta("Con Problemas Fiscales SA", cuitAleatorio())))
+                .andExpect(status().isCreated())
+                .andReturn());
+
+        mvc.perform(get(portalDe(A, "/api/proveedores")).session(administrador))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].situacionFiscal").value("INHABILITADO"));
+
+        mvc.perform(cambiarEstado(A, administrador, id, "APROBADO", null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("APROBADO"));
+    }
+
+    @Test
     @DisplayName("sin el módulo contratado, alta/listado/consulta por token/cambio de estado rechazan con 403 "
             + "MODULO_NO_CONTRATADO, incluso sin sesión y con datos/token válidos")
     void sinModuloContratadoRechazaTodasLasRutas() throws Exception {
@@ -303,6 +363,12 @@ class ProveedoresTest extends SoporteDeIntegracion {
         mvc.perform(get(portalDe(B, "/api/proveedores")).session(administradorDeB))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.id == " + idEnA + " && @.razonSocial == 'Proveedor de San Isidro SA')]")
+                        .isEmpty())
+                // No solo la fila entera está ausente: tampoco es posible
+                // encontrar la situación fiscal de ese proveedor de A desde
+                // el listado de B.
+                .andExpect(jsonPath(
+                        "$[?(@.id == " + idEnA + " && @.razonSocial == 'Proveedor de San Isidro SA')].situacionFiscal")
                         .isEmpty());
 
         // Deliberadamente al revés de lo que uno esperaría de una unicidad
@@ -342,11 +408,25 @@ class ProveedoresTest extends SoporteDeIntegracion {
                 .formatted(razonSocial, cuit);
     }
 
-    /** CUIT único por test, con guiones, para no chocar entre corridas de la misma clase. */
+    /** CUIT único por test, con guiones, para no chocar entre corridas de la misma clase. Termina en '1' (impar). */
     private static String cuitAleatorio() {
+        return cuitConUltimoDigito('1');
+    }
+
+    /**
+     * Igual que {@link #cuitAleatorio()}, pero forzando el último dígito
+     * para ejercitar los tres resultados posibles de {@code PadronFiscalSimulado}
+     * (ADR 0020 §2) eligiendo el CUIT de prueba.
+     */
+    private static String cuitConUltimoDigito(char ultimoDigito) {
         String digitos = String.valueOf(Math.abs(UUID.randomUUID().getMostSignificantBits()));
         digitos = ("20" + digitos).substring(0, 10);
-        return digitos.substring(0, 2) + "-" + digitos.substring(2) + "-1";
+        return digitos.substring(0, 2) + "-" + digitos.substring(2) + "-" + ultimoDigito;
+    }
+
+    /** Extrae el {@code id} devuelto por un alta, para no repetir el cast en cada test. */
+    private static Long idDelAlta(MvcResult resultadoDeAlta) throws Exception {
+        return ((Number) JsonPath.read(resultadoDeAlta.getResponse().getContentAsString(), "$.id")).longValue();
     }
 
     private void fijarModulos(String slug, MockHttpSession sesionDePlataforma, String... modulos)

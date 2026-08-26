@@ -9,5 +9,10 @@
  * junto con {@code reclamos} y {@code mesaentradas}: la empresa consulta
  * después el estado de su registro por posesión del token que recibió al
  * registrarse, sin necesitar cuenta ni sesión.
+ *
+ * <p>En el alta, este módulo consulta {@code padronfiscal.PadronFiscal}
+ * (ADR 0020) y guarda el resultado como un dato más del registro: es
+ * advisory, visible solo para quien tiene {@code proveedores.ver}, y no
+ * bloquea el alta ni la aprobación.
  */
 package ar.com.ciudaddigital.proveedores;

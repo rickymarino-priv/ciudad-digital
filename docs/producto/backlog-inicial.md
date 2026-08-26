@@ -33,6 +33,7 @@ diseñe cada fase.
 | CD-21 | R13 · Un vecino paga una tasa municipal online |
 | CD-22 | R14 · Una empresa se registra como proveedor del municipio y el municipio la aprueba |
 | CD-23 | R15 · El proveedor de la plataforma ve y gestiona el contrato de sus municipios clientes |
+| CD-24 | R16 · Un proveedor se registra y el municipio ve su situación fiscal validada contra AFIP (simulado) |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -844,6 +845,64 @@ plataforma (hoy todo-o-nada), UI para alta de municipios o migración de
 esquema (siguen por API/`curl`), y cualquier dato operativo de un
 municipio (usuarios, reclamos, tasas, proveedores) — la consola no tiene
 ninguna vía para leerlos.
+
+### R16 · Un proveedor se registra y el municipio ve su situación fiscal validada contra AFIP (simulado)
+
+**Demo**: una empresa se registra como proveedor (mismo formulario de R14),
+con un CUIT que termina en un dígito par (por ejemplo, `...78-2`). Un
+agente municipal, en el panel de gestión, ve el registro con la columna
+"Situación fiscal (AFIP)" en **Activo**. Otra empresa se registra con un
+CUIT que termina en un dígito impar: el agente ve **Inhabilitado**, con
+una nota visible de que conviene revisarlo antes de aprobar — pero el
+agente puede aprobarlo igual si tiene motivos para hacerlo, el sistema no
+se lo impide. Un tercer CUIT, terminado en `0`, aparece como **No
+encontrado en el padrón**.
+
+R16 cierra el último ítem de Fase 2 del roadmap: "capa de adaptadores a
+sistemas legados (AFIP/ARBA o equivalente provincial, pasarelas de pago)".
+La parte de pasarelas de pago ya se resolvió en R13 (ADR 0018); R16
+resuelve el diferido explícito de R14: "verificación de CUIT contra un
+padrón real (AFIP u otro)". No se construye una capa de adaptadores en
+abstracto: se resuelve contra ese caso concreto y ya señalado en el
+backlog.
+
+Requiere [ADR 0020](../arquitectura/decisiones/0020-padron-fiscal-simulado-para-cuit-de-proveedores.md):
+mismo patrón interfaz + adaptador simulado que ADR 0018 (pasarela de
+pago), acá para un padrón fiscal — interfaz `PadronFiscal`, módulo canon
+base nuevo `padronfiscal`, único adaptador activo `PadronFiscalSimulado`
+(determinístico según el CUIT, sin llamadas de red), y una decisión de
+producto explícita: el resultado es **advisory, no bloqueante** — ni el
+alta ni la aprobación se impiden por la situación fiscal, el sistema solo
+la muestra a quien decide. Bloquear es una decisión de negocio que ningún
+municipio piloto pidió todavía (ver ADR 0020, Alternativas consideradas).
+
+Incluye:
+- Módulo `padronfiscal`, canon base (no contratable): interfaz
+  `PadronFiscal` y su único adaptador, `PadronFiscalSimulado`.
+- `proveedores` consulta `padronfiscal` en el alta (`GestionDeProveedores.registrar`)
+  y persiste el resultado en la columna nueva `situacion_fiscal`
+  (`ACTIVO`/`INHABILITADO`/`NO_ENCONTRADO`) de `proveedor`.
+- `ProveedorResponse` (shape completo, `proveedores.ver`) incluye
+  `situacionFiscal`; ni `ProveedorPublicoResponse` (confirmación del alta)
+  ni `SeguimientoDeProveedorResponse` (consulta pública por token) lo
+  exponen — es información para la decisión interna del municipio, no
+  para la empresa (ADR 0020 §3).
+- Panel de gestión de `proveedores`: columna nueva "Situación fiscal
+  (AFIP)" con texto explícito (no solo color/ícono) para `INHABILITADO` y
+  `NO_ENCONTRADO`, sin que eso oculte ni deshabilite las acciones de
+  aprobar/rechazar.
+- **Test de aislamiento**: extendido (no duplicado) para confirmar que
+  `situacionFiscal` de un proveedor de un municipio no es visible desde
+  otro, mismo criterio que el resto de los campos de `proveedor`.
+
+Queda fuera de R16, explícitamente diferido (ADR 0020): integración con
+un padrón real de AFIP/ARBA o equivalente provincial y sus credenciales,
+manejo de caída/timeout/reintentos del servicio real, re-consulta de la
+situación fiscal después del alta, bloqueo del alta o de la aprobación
+según el resultado (decisión de negocio pendiente de un piloto real),
+exponer la situación fiscal a la propia empresa registrada, y aplicar el
+mismo mecanismo a `tasas` (que hoy no tiene ningún campo de identidad
+fiscal del contribuyente).
 
 ## Epic: Fase 3 — Compras y áreas normativamente pesadas
 
