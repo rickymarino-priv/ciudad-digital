@@ -31,6 +31,7 @@ diseñe cada fase.
 | CD-19 | R11 · Transparencia activa básica: presupuesto y escala salarial públicos |
 | CD-20 | R12 · Un vecino sin sesión consulta el estado de su reclamo o trámite con el token que recibió al cargarlo — **terminada** |
 | CD-21 | R13 · Un vecino paga una tasa municipal online |
+| CD-22 | R14 · Una empresa se registra como proveedor del municipio y el municipio la aprueba |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -697,6 +698,88 @@ edición, exención, plan de pagos/moratoria), capa de adaptadores a
 AFIP/ARBA o equivalente provincial, notificación de vencimientos o de pago
 al vecino, rate limiting sobre los endpoints públicos nuevos, y
 conciliación contable/Tesorería (Fase 3).
+
+### R14 · Una empresa se registra como proveedor del municipio y el municipio la aprueba
+
+**Demo**: una empresa, sin cuenta ni sesión, entra al portal público de un
+municipio y se registra como proveedor (razón social, CUIT, rubro,
+contacto, domicilio) declarando qué documentación tiene (constancia de
+AFIP, seguro de responsabilidad civil, certificado de antecedentes). Al
+enviar el formulario recibe un código de seguimiento y queda "Pendiente".
+Un agente municipal con sesión y el permiso `proveedores.gestionar` ve el
+registro en la lista de proveedores y lo aprueba (o rechaza, con un
+comentario). La empresa, sin sesión, vuelve más tarde con su código de
+seguimiento y ve que su registro está "Aprobado". El mismo CUIT registrado
+en un municipio no aparece ni es consultable en el portal de otro
+municipio.
+
+R14 es el segundo ítem de Fase 2 del roadmap, **Portal de proveedores
+(registro y documentación)**. A diferencia de todo lo construido hasta
+ahora, el usuario final de la escritura pública no es un vecino sino un
+tipo de actor nuevo (una empresa/persona que quiere venderle al
+municipio), pero el mecanismo que necesita —alta pública sin cuenta y
+consulta posterior de su propio estado por posesión de un secreto— es
+exactamente el que ya cubre
+[ADR 0017](../arquitectura/decisiones/0017-seguimiento-anonimo-por-token-en-reclamos-y-mesa-de-entradas.md):
+se reutiliza el módulo `seguimientoanonimo` tal cual, como tercer
+consumidor, en vez de inventar un login de proveedor. No requiere ADR
+propio: reutiliza sin extenderlos los patrones ya fijados por
+[ADR 0011](../arquitectura/decisiones/0011-autorizacion-por-roles-con-permisos-granulares.md)/
+[ADR 0012](../arquitectura/decisiones/0012-declaracion-de-modulos-y-gating-por-ruta.md)
+(permisos y gating de módulo), [ADR 0014](../arquitectura/decisiones/0014-reclamos-ciudadanos-alta-publica-anonima-y-estado-propio.md)
+§1 (escritura pública, solo `POST`) y ADR 0017 (token de seguimiento,
+consulta de solo lectura).
+
+"Documentación", en esta rebanada, es una declaración (checklist +
+observaciones de texto libre), no una carga de archivos: el proyecto
+todavía no tiene infraestructura de almacenamiento de archivos, y
+construirla sin otro caso real que la necesite sería sobredimensionar
+esta rebanada. Se difiere explícitamente a cuando exista esa
+infraestructura o un segundo módulo que también la necesite.
+
+Incluye:
+- Módulo `proveedores`, contratable por municipio. Alta pública
+  (`POST /api/proveedores`, sin sesión) con razón social, CUIT (formato
+  validado y normalizado, único por municipio), rubro (categoría fija),
+  email y teléfono de contacto, domicilio, y la documentación declarada
+  (tres checkboxes — constancia de AFIP, seguro de responsabilidad civil,
+  certificado de antecedentes — más observaciones de texto libre).
+  Devuelve, igual que reclamos y mesa de entradas, un token de seguimiento
+  en claro una única vez.
+- Estado del proveedor: `PENDIENTE` → `APROBADO`/`RECHAZADO` (terminal),
+  con comentario de gestión opcional — mismo patrón de estado fijo
+  codificado en el servicio del módulo que ya usan `reclamos`/`tasas`, sin
+  motor de workflow genérico (no varía por municipio).
+- `GET /api/proveedores/seguimiento/{token}`, pública, con la misma
+  minimización de datos que ya aplica ADR 0017 §5 (sin los datos de
+  contacto que la propia empresa ya tiene).
+- `GET /api/proveedores` (listado completo) y
+  `PATCH /api/proveedores/{id}/estado` (aprobar/rechazar), protegidos.
+  Permisos nuevos `proveedores.ver` y `proveedores.gestionar`, asignados a
+  **ambos** roles de sistema (`administrador` y `agente`): revisar y
+  aprobar un proveedor es una tarea operativa de gestión, no un acto
+  fiscal como `tasas.publicar` — mismo criterio que
+  `reclamos.gestionar`/`mesaentradas` (ADR 0014 §8).
+- Pantalla pública de alta + consulta por token (accesible, sin cuenta) y
+  panel de gestión para quien tiene `proveedores.ver`/`gestionar`, mismo
+  patrón "una pantalla, vistas según permiso" que el resto de los módulos.
+- **Test de aislamiento**: un proveedor registrado en un municipio (y su
+  token) no es visible ni consultable desde otro; el mismo CUIT puede
+  volver a registrarse en otro municipio sin conflicto de unicidad (la
+  unicidad de CUIT es por base de tenant, no global).
+
+Queda fuera de R14, explícitamente diferido: carga de archivos reales de
+documentación (constancias/seguros/antecedentes en PDF u otro formato) y
+la infraestructura de almacenamiento que eso requiere; verificación de
+CUIT contra un padrón real (AFIP u otro); reconsideración o edición de un
+registro rechazado por la propia empresa (mismo criterio que ADR 0014
+para reclamos: sin cuenta no hay forma de verificar que quien edita es
+quien creó); notificación a la empresa cuando cambia el estado de su
+registro (motor de notificaciones, ADR 0013); vencimiento/renovación de la
+documentación declarada; catálogo de licitaciones/compras y participación
+del proveedor en un proceso de compra (Fase 3); consola del proveedor
+cross-tenant (ver [modelo comercial](modelo-comercial.md)); y rate
+limiting sobre los endpoints públicos nuevos.
 
 ## Epic: Fase 3 — Compras y áreas normativamente pesadas
 
