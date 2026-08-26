@@ -11,6 +11,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import ar.com.ciudaddigital.padronfiscal.SituacionFiscal;
+
 /**
  * Un proveedor registrado por una empresa ante este municipio, sin cuenta
  * (ADR 0014 §1), con la documentación que declara tener y su estado de
@@ -66,6 +68,10 @@ class ProveedorEntity {
     @Column(nullable = false, length = 20)
     private EstadoDeProveedor estado;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "situacion_fiscal", nullable = false, length = 20)
+    private SituacionFiscal situacionFiscal;
+
     @Column(name = "comentario_gestion", length = 1000)
     private String comentarioGestion;
 
@@ -90,7 +96,7 @@ class ProveedorEntity {
     static ProveedorEntity nuevo(String razonSocial, String cuit, RubroProveedor rubro, String emailContacto,
             String telefonoContacto, String domicilio, boolean declaraConstanciaAfip,
             boolean declaraSeguroResponsabilidadCivil, boolean declaraCertificadoAntecedentes,
-            String documentacionAdicional, String tokenHash) {
+            String documentacionAdicional, String tokenHash, SituacionFiscal situacionFiscal) {
 
         ProveedorEntity proveedor = new ProveedorEntity();
         proveedor.razonSocial = razonSocial;
@@ -105,6 +111,7 @@ class ProveedorEntity {
         proveedor.documentacionAdicional = documentacionAdicional;
         proveedor.estado = EstadoDeProveedor.PENDIENTE;
         proveedor.tokenHash = tokenHash;
+        proveedor.situacionFiscal = situacionFiscal;
         proveedor.creadoEn = Instant.now();
         proveedor.actualizadoEn = proveedor.creadoEn;
         return proveedor;
@@ -156,6 +163,10 @@ class ProveedorEntity {
 
     EstadoDeProveedor getEstado() {
         return estado;
+    }
+
+    SituacionFiscal getSituacionFiscal() {
+        return situacionFiscal;
     }
 
     String getComentarioGestion() {

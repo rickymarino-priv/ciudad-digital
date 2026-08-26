@@ -9,6 +9,8 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ar.com.ciudaddigital.padronfiscal.PadronFiscal;
+import ar.com.ciudaddigital.padronfiscal.SituacionFiscal;
 import ar.com.ciudaddigital.seguimientoanonimo.TokenDeSeguimiento;
 
 /**
@@ -40,9 +42,11 @@ class GestionDeProveedores {
                     EstadoDeProveedor.RECHAZADO, EnumSet.noneOf(EstadoDeProveedor.class)));
 
     private final ProveedorRepository proveedores;
+    private final PadronFiscal padronFiscal;
 
-    GestionDeProveedores(ProveedorRepository proveedores) {
+    GestionDeProveedores(ProveedorRepository proveedores, PadronFiscal padronFiscal) {
         this.proveedores = proveedores;
+        this.padronFiscal = padronFiscal;
     }
 
     @Transactional("tenantTransactionManager")
@@ -95,13 +99,19 @@ class GestionDeProveedores {
                             + LARGO_MAXIMO_DOCUMENTACION_ADICIONAL + " caracteres.");
         }
 
+        // Advisory, no bloqueante (ADR 0020 §3): el resultado se guarda para
+        // que el municipio lo vea, pero no hay ningún `if` acá que rechace
+        // el alta según lo que devuelva el padrón.
+        SituacionFiscal situacionFiscal = padronFiscal.consultar(cuitNormalizado);
+
         // El token en claro solo existe acá, entre que se genera y que el
         // record de retorno lo lleva hasta el controller (ADR 0017 §4): ni
         // la entidad ni el repositorio lo vuelven a ver.
         String tokenDeSeguimiento = TokenDeSeguimiento.generar();
         ProveedorEntity proveedor = ProveedorEntity.nuevo(razonSocial, cuitNormalizado, rubro, emailContacto,
                 telefonoContacto, domicilio, declaraConstanciaAfip, declaraSeguroResponsabilidadCivil,
-                declaraCertificadoAntecedentes, documentacionAdicional, TokenDeSeguimiento.hash(tokenDeSeguimiento));
+                declaraCertificadoAntecedentes, documentacionAdicional, TokenDeSeguimiento.hash(tokenDeSeguimiento),
+                situacionFiscal);
         return new ProveedorCreado(proveedores.save(proveedor), tokenDeSeguimiento);
     }
 
