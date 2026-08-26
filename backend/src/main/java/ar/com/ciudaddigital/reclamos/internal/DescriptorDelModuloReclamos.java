@@ -39,13 +39,14 @@ class DescriptorDelModuloReclamos implements DescriptorDeModulo {
     }
 
     /**
-     * Ni el listado ni el detalle son públicos en esta rebanada: no hay
-     * seguimiento anónimo por id, porque un id secuencial es adivinable y
-     * expondría el contacto de cualquier reclamo (ADR 0014 §6).
+     * El listado y el detalle por id siguen sin ser públicos: un id
+     * secuencial es adivinable y expondría el contacto de cualquier
+     * reclamo (ADR 0014 §6). La única lectura pública es la consulta por
+     * posesión de un token no adivinable, que no es lo mismo (ADR 0017).
      */
     @Override
     public List<String> rutasDeLecturaPublica() {
-        return List.of();
+        return List.of("/api/reclamos/seguimiento/{token}");
     }
 
     /** Solo el alta: un vecino carga un reclamo sin cuenta (ADR 0014 §1). */

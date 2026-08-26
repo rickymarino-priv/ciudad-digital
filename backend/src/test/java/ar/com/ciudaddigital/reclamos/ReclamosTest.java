@@ -54,7 +54,8 @@ class ReclamosTest extends SoporteDeIntegracion {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.categoria").value("BACHE"))
-                .andExpect(jsonPath("$.estado").value("NUEVO"));
+                .andExpect(jsonPath("$.estado").value("NUEVO"))
+                .andExpect(jsonPath("$.tokenDeSeguimiento").isNotEmpty());
 
         mvc.perform(cargar(B, """
                 {"categoria":"BACHE","descripcion":"Pozo grande en la vereda","direccion":"San Martín 123"}"""))
@@ -197,6 +198,87 @@ class ReclamosTest extends SoporteDeIntegracion {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.descripcion == '" + descripcionDeB + "')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.descripcion == '" + descripcionDeA + "')]").isEmpty());
+    }
+
+    @Test
+    @DisplayName("seguimiento por token: consulta pública sin sesión trae id/categoria/estado sin datos de "
+            + "gestión, y refleja el estado/comentario luego de un cambio con sesión")
+    void seguimientoPorTokenSinDatosDeGestion() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "reclamos");
+        MockHttpSession administrador = iniciarSesionDeAdministrador(A);
+
+        MvcResult resultadoDeAlta = mvc.perform(cargar(A, """
+                {"categoria":"BACHE","descripcion":"Pozo grande en la vereda",
+                 "direccion":"San Martín 123","nombreContacto":"Ana","contacto":"ana@mail.com"}"""))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String cuerpoDeAlta = resultadoDeAlta.getResponse().getContentAsString();
+        Long id = ((Number) JsonPath.read(cuerpoDeAlta, "$.id")).longValue();
+        String token = JsonPath.read(cuerpoDeAlta, "$.tokenDeSeguimiento");
+
+        mvc.perform(get(portalDe(A, "/api/reclamos/seguimiento/" + token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.categoria").value("BACHE"))
+                .andExpect(jsonPath("$.estado").value("NUEVO"))
+                .andExpect(jsonPath("$.descripcion").doesNotExist())
+                .andExpect(jsonPath("$.direccion").doesNotExist())
+                .andExpect(jsonPath("$.nombreContacto").doesNotExist())
+                .andExpect(jsonPath("$.contacto").doesNotExist());
+
+        mvc.perform(cambiarEstado(A, administrador, id, "EN_PROCESO", "Lo estamos viendo"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get(portalDe(A, "/api/reclamos/seguimiento/" + token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("EN_PROCESO"))
+                .andExpect(jsonPath("$.comentarioGestion").value("Lo estamos viendo"));
+    }
+
+    @Test
+    @DisplayName("seguimiento por token: un token inventado da 404; con el módulo sin contratar, "
+            + "un token válido da 403 MODULO_NO_CONTRATADO")
+    void seguimientoPorTokenInexistenteOSinModulo() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "reclamos");
+        fijarModulos(B, plataforma);
+
+        mvc.perform(get(portalDe(A, "/api/reclamos/seguimiento/token-inventado")))
+                .andExpect(status().isNotFound());
+
+        MvcResult resultadoDeAlta = mvc.perform(cargar(A, """
+                {"categoria":"BACHE","descripcion":"Pozo grande en la vereda","direccion":"San Martín 123"}"""))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String token = JsonPath.read(resultadoDeAlta.getResponse().getContentAsString(), "$.tokenDeSeguimiento");
+
+        mvc.perform(get(portalDe(B, "/api/reclamos/seguimiento/" + token)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo").value("MODULO_NO_CONTRATADO"))
+                .andExpect(jsonPath("$.modulo").value("reclamos"));
+    }
+
+    @Test
+    @DisplayName("aislamiento: el token de un reclamo de un municipio no encuentra nada en el otro")
+    void aislamientoDeTokenEntreTenants() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(A, plataforma, "reclamos");
+        fijarModulos(B, plataforma, "reclamos");
+
+        MvcResult resultadoDeAlta = mvc.perform(cargar(A, """
+                {"categoria":"BACHE","descripcion":"Pozo grande en la vereda","direccion":"San Martín 123"}"""))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String token = JsonPath.read(resultadoDeAlta.getResponse().getContentAsString(), "$.tokenDeSeguimiento");
+
+        // El token es real (de un reclamo que existe en A), pero la
+        // consulta corre contra la base de B, que no tiene esa fila: es la
+        // garantía real de aislamiento (el datasource ruteado por tenant),
+        // no un token "mal formado".
+        mvc.perform(get(portalDe(B, "/api/reclamos/seguimiento/" + token)))
+                .andExpect(status().isNotFound());
     }
 
     private MockHttpServletRequestBuilder cargar(String subdominio, String cuerpo) {

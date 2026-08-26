@@ -42,9 +42,13 @@ class DescriptorDelModuloMesaDeEntradas implements DescriptorDeModulo {
         return List.of("/api/mesaentradas");
     }
 
-    // Sin rutasDeLecturaPublica(): a diferencia de reclamos/boletin/cementerio,
-    // esta rebanada no ofrece ninguna lectura pública. El vecino no puede
-    // consultar su trámite después de iniciarlo (ADR 0015 §4, pendiente de
-    // definir un mecanismo de seguimiento anónimo), así que se usa el
-    // default vacío de la interfaz.
+    /**
+     * El vecino ahora sí puede consultar su trámite después de iniciarlo,
+     * por posesión de un token no adivinable —no por id, que sigue sin ser
+     * público (ADR 0015 §4, resuelto por ADR 0017)—.
+     */
+    @Override
+    public List<String> rutasDeLecturaPublica() {
+        return List.of("/api/mesaentradas/seguimiento/{token}");
+    }
 }

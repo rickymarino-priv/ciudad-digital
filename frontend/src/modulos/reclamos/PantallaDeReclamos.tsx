@@ -27,6 +27,24 @@ type RespuestaAlta = {
   categoria: Categoria
   estado: Estado
   creadoEn: string
+  /**
+   * Secreto que habilita la consulta pública posterior (ADR 0017): el
+   * backend lo devuelve en claro una única vez, acá. No se vuelve a poder
+   * leer después, así que la pantalla tiene que dejarlo bien visible y
+   * copiable.
+   */
+  tokenDeSeguimiento: string
+}
+
+/** Respuesta de `GET /api/reclamos/seguimiento/{token}` (ADR 0017 §5):
+ * subconjunto de `Reclamo`, sin datos que el propio vecino ya tiene. */
+type SeguimientoDeReclamo = {
+  id: number
+  categoria: Categoria
+  estado: Estado
+  comentarioGestion: string | null
+  creadoEn: string
+  actualizadoEn: string
 }
 
 const CATEGORIAS: { valor: Categoria; etiqueta: string }[] = [
@@ -103,6 +121,11 @@ type PropsFormulario = {
 }
 
 function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
+  // Sin router de URLs en este frontend (ADR 0008): la sub-vista de
+  // consulta pública por token es un estado local más, igual que el resto
+  // de la navegación de la app (ver `App.tsx`).
+  const [vista, setVista] = useState<'formulario' | 'consulta'>('formulario')
+
   const [categoria, setCategoria] = useState<Categoria | ''>('')
   const [descripcion, setDescripcion] = useState('')
   const [direccion, setDireccion] = useState('')
@@ -111,6 +134,7 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmacion, setConfirmacion] = useState<RespuestaAlta | null>(null)
+  const [tokenCopiado, setTokenCopiado] = useState(false)
 
   const vigente = useRef(true)
   useEffect(() => {
@@ -122,11 +146,18 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
 
   const titulo = useRef<HTMLHeadingElement>(null)
   const errorRef = useRef<HTMLParagraphElement>(null)
-  const confirmacionRef = useRef<HTMLParagraphElement>(null)
+  const confirmacionRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    // `vista` como dependencia: al volver de la consulta de seguimiento
+    // `FormularioDeAlta` no se remonta (es el mismo `return` condicional
+    // dentro del mismo componente), así que sin esto el título nunca
+    // recuperaba el foco y quedaba en `<body>`. Cuando `vista` pasa a
+    // 'consulta' el componente ya devolvió `<ConsultaDeSeguimiento />` antes
+    // de este render, así que `titulo.current` apunta al `h1` que se acaba
+    // de desmontar (React lo deja en `null`) y `focus()` no hace nada.
     titulo.current?.focus()
-  }, [])
+  }, [vista])
 
   useEffect(() => {
     if (error) {
@@ -185,6 +216,33 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
     }
   }
 
+  /**
+   * Copia el token al portapapeles como comodidad extra. El código ya
+   * queda visible y seleccionable a mano en el campo de solo lectura de
+   * abajo, así que si el navegador no permite usar el portapapeles (sin
+   * HTTPS, permiso denegado) no hay nada más que hacer: no es un error que
+   * el vecino necesite ver.
+   */
+  async function copiarToken(token: string) {
+    try {
+      await navigator.clipboard.writeText(token)
+      if (vigente.current) {
+        setTokenCopiado(true)
+        window.setTimeout(() => {
+          if (vigente.current) {
+            setTokenCopiado(false)
+          }
+        }, 2000)
+      }
+    } catch {
+      // Sin portapapeles disponible: el código sigue ahí para copiar a mano.
+    }
+  }
+
+  if (vista === 'consulta') {
+    return <ConsultaDeSeguimiento modulo={modulo} onVolver={() => setVista('formulario')} />
+  }
+
   const idDelError = 'error-de-alta-reclamo'
 
   return (
@@ -201,6 +259,9 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
         <button type="button" className="boton boton--secundario" onClick={onVolver}>
           Volver al portal
         </button>
+        <button type="button" className="boton boton--secundario" onClick={() => setVista('consulta')}>
+          ¿Ya cargaste un reclamo? Consultá su estado
+        </button>
       </div>
 
       <form className="formulario" onSubmit={(evento) => void enviarReclamo(evento)}>
@@ -211,13 +272,37 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
         )}
 
         {confirmacion && (
-          <p role="status" tabIndex={-1} ref={confirmacionRef}>
-            Tu reclamo quedó registrado con el número {confirmacion.id}. Vas a
-            ver el estado «Nuevo» hasta que el municipio lo empiece a
-            atender: en esta rebanada todavía no hay una pantalla para
-            volver a consultarlo más adelante, así que te conviene anotar el
-            número.
-          </p>
+          <div role="status" tabIndex={-1} ref={confirmacionRef}>
+            <p>
+              Tu reclamo quedó registrado con el número {confirmacion.id}. Vas
+              a ver el estado «Nuevo» hasta que el municipio lo empiece a
+              atender.
+            </p>
+            <p>
+              <strong>Guardá este código de seguimiento: es la única forma
+              de volver a consultar el estado de tu reclamo más
+              adelante.</strong> No lo vamos a reenviar por ningún otro
+              medio ni lo vas a poder recuperar si lo perdés.
+            </p>
+            <div className="campo">
+              <label htmlFor="reclamo-token-generado">Código de seguimiento</label>
+              <div className="formulario__acciones formulario__acciones--compacto">
+                <input
+                  id="reclamo-token-generado"
+                  readOnly
+                  value={confirmacion.tokenDeSeguimiento}
+                  onFocus={(evento) => evento.target.select()}
+                />
+                <button
+                  type="button"
+                  className="boton boton--secundario"
+                  onClick={() => void copiarToken(confirmacion.tokenDeSeguimiento)}
+                >
+                  {tokenCopiado ? 'Copiado' : 'Copiar'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="campo">
@@ -299,6 +384,151 @@ function FormularioDeAlta({ modulo, onVolver }: PropsFormulario) {
           </button>
         </div>
       </form>
+    </main>
+  )
+}
+
+// --- Consulta pública por token de seguimiento (ADR 0017) ---
+
+type PropsConsulta = {
+  modulo?: Modulo
+  onVolver: () => void
+}
+
+/**
+ * Sub-vista de `FormularioDeAlta`: un vecino sin sesión, con el token que
+ * recibió al cargar un reclamo, consulta en qué quedó — de solo lectura,
+ * sin ninguna acción posible (ADR 0017 §5/§6).
+ */
+function ConsultaDeSeguimiento({ modulo, onVolver }: PropsConsulta) {
+  const [codigo, setCodigo] = useState('')
+  const [consultando, setConsultando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [resultado, setResultado] = useState<SeguimientoDeReclamo | null>(null)
+
+  const vigente = useRef(true)
+  useEffect(() => {
+    vigente.current = true
+    return () => {
+      vigente.current = false
+    }
+  }, [])
+
+  const titulo = useRef<HTMLHeadingElement>(null)
+  const errorRef = useRef<HTMLParagraphElement>(null)
+  const resultadoRef = useRef<HTMLDListElement>(null)
+
+  useEffect(() => {
+    titulo.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    if (error) {
+      errorRef.current?.focus()
+    }
+  }, [error])
+
+  useEffect(() => {
+    if (resultado) {
+      resultadoRef.current?.focus()
+    }
+  }, [resultado])
+
+  async function consultar(evento: FormEvent) {
+    evento.preventDefault()
+    setError(null)
+    setResultado(null)
+    setConsultando(true)
+    try {
+      const respuesta = await pedir<SeguimientoDeReclamo>(
+        `/api/reclamos/seguimiento/${encodeURIComponent(codigo.trim())}`,
+        'No pudimos encontrar un reclamo con ese código.',
+      )
+      if (!vigente.current) {
+        return
+      }
+      setResultado(respuesta)
+    } catch (fallo: unknown) {
+      if (!vigente.current) {
+        return
+      }
+      setError(fallo instanceof Error ? fallo.message : 'No pudimos encontrar un reclamo con ese código.')
+    } finally {
+      if (vigente.current) {
+        setConsultando(false)
+      }
+    }
+  }
+
+  const idDelError = 'error-de-consulta-reclamo'
+
+  return (
+    <main id="contenido" className="contenido">
+      <h1 ref={titulo} tabIndex={-1}>
+        Consultar el estado de un reclamo
+      </h1>
+      <p className="contenido__bajada">
+        Ingresá el código de seguimiento que recibiste al cargar tu
+        reclamo en {modulo?.nombre ?? 'Reclamos'}, sin espacios ni
+        caracteres de más.
+      </p>
+
+      <div className="formulario__acciones">
+        <button type="button" className="boton boton--secundario" onClick={onVolver}>
+          Volver al formulario de alta
+        </button>
+      </div>
+
+      <form className="formulario" onSubmit={(evento) => void consultar(evento)}>
+        {error && (
+          <p className="formulario__error" id={idDelError} role="alert" tabIndex={-1} ref={errorRef}>
+            {error}
+          </p>
+        )}
+
+        <div className="campo">
+          <label htmlFor="reclamo-codigo-seguimiento">Código de seguimiento</label>
+          <input
+            id="reclamo-codigo-seguimiento"
+            required
+            value={codigo}
+            onChange={(evento) => setCodigo(evento.target.value)}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? idDelError : undefined}
+          />
+        </div>
+
+        <div className="formulario__acciones">
+          <button type="submit" className="boton" disabled={consultando} aria-busy={consultando}>
+            {consultando ? 'Consultando…' : 'Consultar'}
+          </button>
+        </div>
+      </form>
+
+      {resultado && (
+        <dl className="ficha" role="status" tabIndex={-1} ref={resultadoRef}>
+          <div className="ficha__fila">
+            <dt>Categoría</dt>
+            <dd>{ETIQUETA_CATEGORIA[resultado.categoria]}</dd>
+          </div>
+          <div className="ficha__fila">
+            <dt>Estado</dt>
+            <dd>{ETIQUETA_ESTADO[resultado.estado]}</dd>
+          </div>
+          <div className="ficha__fila">
+            <dt>Comentario del municipio</dt>
+            <dd>{resultado.comentarioGestion ?? 'Todavía no hay comentario del municipio.'}</dd>
+          </div>
+          <div className="ficha__fila">
+            <dt>Creado</dt>
+            <dd>{FECHA.format(new Date(resultado.creadoEn))}</dd>
+          </div>
+          <div className="ficha__fila">
+            <dt>Última actualización</dt>
+            <dd>{FECHA.format(new Date(resultado.actualizadoEn))}</dd>
+          </div>
+        </dl>
+      )}
     </main>
   )
 }
