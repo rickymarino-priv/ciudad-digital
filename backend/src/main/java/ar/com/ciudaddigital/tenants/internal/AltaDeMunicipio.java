@@ -34,6 +34,13 @@ class AltaDeMunicipio {
     private static final String PREFIJO_BASE = "tenant_";
 
     /**
+     * Único subdominio que hoy usa la Consola del proveedor (ADR 0019 §3).
+     * Si un municipio se diera de alta con este slug, su subdominio quedaría
+     * tapado por la consola y sería inalcanzable para sus vecinos.
+     */
+    private static final String SLUG_RESERVADO_CONSOLA = "admin";
+
+    /**
      * Forma mínima de un email. No valida que exista: eso solo lo puede
      * decir un mensaje que llegue, y el motor de notificaciones es de R5.
      */
@@ -116,6 +123,10 @@ class AltaDeMunicipio {
                     "El identificador del municipio debe tener entre 3 y 41 caracteres, "
                             + "empezar con una letra y contener solo letras y números "
                             + "minúsculos.");
+        }
+        if (SLUG_RESERVADO_CONSOLA.equals(slug)) {
+            throw new SolicitudInvalida(
+                    "El identificador \"admin\" está reservado para la consola del proveedor.");
         }
         if (repositorio.existsBySlugIgnoreCase(slug)) {
             throw new SolicitudInvalida("Ya existe un municipio con el identificador " + slug + ".");

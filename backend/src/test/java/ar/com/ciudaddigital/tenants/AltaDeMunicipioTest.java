@@ -96,6 +96,37 @@ class AltaDeMunicipioTest extends SoporteDeIntegracion {
     }
 
     @Test
+    @DisplayName("el slug \"admin\" está reservado para la consola del proveedor y se rechaza")
+    void elSlugAdminEstaReservado() throws Exception {
+        mvc.perform(post("/api/admin/municipios")
+                .session(iniciarSesionDePlataforma())
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"slug":"admin","nombreMunicipio":"Municipio Colado",
+                         "direccion":"x","telefono":"y","email":"z@x.ar"}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(
+                        "El identificador \"admin\" está reservado para la consola del proveedor."));
+
+        // La normalización a minúsculas no se puede esquivar con mayúsculas.
+        mvc.perform(post("/api/admin/municipios")
+                .session(iniciarSesionDePlataforma())
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"slug":"ADMIN","nombreMunicipio":"Municipio Colado Mayúsculas",
+                         "direccion":"x","telefono":"y","email":"z@x.ar"}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(
+                        "El identificador \"admin\" está reservado para la consola del proveedor."));
+
+        mvc.perform(get("/api/admin/municipios").session(iniciarSesionDePlataforma()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.slug=='admin')]").isEmpty());
+    }
+
+    @Test
     @DisplayName("la API de administración exige sesión de usuario de plataforma")
     void laApiDeAdministracionEstaProtegida() throws Exception {
         mvc.perform(get("/api/admin/municipios"))
