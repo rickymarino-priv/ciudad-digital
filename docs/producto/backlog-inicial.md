@@ -36,6 +36,8 @@ diseñe cada fase.
 | CD-24 | R16 · Un proveedor se registra y el municipio ve su situación fiscal validada contra AFIP (simulado) |
 | CD-25 | R17 · Un agente de tránsito labra una multa y el vecino la paga con descuento, o la impugna (parent: CD-4) |
 | CD-26 | R18 · El municipio ve su contrato y sus módulos, y pide un alta o baja (parent: CD-4) |
+| CD-27 | R19 · El municipio registra una obra pública en curso y cualquiera ve su estado de avance (parent: CD-5) |
+| CD-28 | R20 · El municipio registra un árbol urbano y cualquiera ve su estado sanitario (parent: CD-5) |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -1151,6 +1153,90 @@ de creada la obra, quién hizo cada cambio de estado (más allá de la
 marca de tiempo), adjuntos/fotos, notificación al vecino de obras
 cercanas, y las demás candidatas de Fase 4 (Catastro, Planeamiento
 Urbano/Uso del Suelo, Ambiente y Servicios Públicos).
+
+### R20 · El municipio registra un árbol urbano y cualquiera ve su estado sanitario
+
+**Demo**: un agente municipal (con sesión y permiso `arbolado.gestionar`)
+registra un árbol nuevo en el padrón: especie, ubicación, fecha de
+plantación (opcional), descripción (opcional). Queda creado en estado
+"Plantado". Un vecino, sin sesión, entra al portal público, filtra por
+estado, busca por texto (especie o ubicación), y encuentra ese árbol
+listado con su estado actual. El mismo agente actualiza el estado a
+"Sano" y después a "Requiere intervención"; al volver a consultar, el
+vecino ve el estado actualizado. El mismo árbol no aparece en el portal
+de otro municipio.
+
+Segunda rebanada de Fase 4, dentro de Ambiente y Servicios Públicos —área
+que R19 (ADR 0023) había dejado explícitamente como "candidata natural de
+la siguiente rebanada de la fase, no descartada por inviable". Elegida por
+descarte razonado de las otras candidatas del área (ver
+[ADR 0024](../arquitectura/decisiones/0024-arbolado-urbano-padron-publico-con-estado-sanitario-propio.md),
+Contexto): recolección de residuos depende de zonas/rutas reales o de un
+contrato real con una empresa recolectora, mismo riesgo que ya descartó
+Planeamiento Urbano en R19; alumbrado público ya está cubierto como
+categoría de reclamo del vecino y, como padrón de infraestructura física
+real (postes, columnas, circuitos), tiene el mismo riesgo que Catastro;
+espacios verdes es viable pero no agrega una dimensión de dominio nueva
+frente a Obras Públicas (mismo patrón nombre/ubicación/tipo/estado), así
+que queda disponible como candidata futura, no descartada por inviable.
+Arbolado urbano aporta algo que ni Obras Públicas ni `reclamos` (R6) dan
+ya: un padrón municipal de activos vivos con su propio ciclo de estado
+sanitario, no una variación de "obra con estado" ni un reclamo de texto
+libre del vecino.
+
+Requiere [ADR 0024](../arquitectura/decisiones/0024-arbolado-urbano-padron-publico-con-estado-sanitario-propio.md):
+decide, siguiendo el mismo mecanismo de alta protegida + lectura pública
+de ADR 0023, un ciclo de estado sanitario propio de cuatro valores
+(`PLANTADO, SANO, REQUIERE_INTERVENCION, RETIRADO`) con tabla de
+transiciones codificada en el servicio (mismo patrón que
+Obras/Multas/Reclamos, no el motor de expediente de ADR 0015); que
+`especie` y `ubicacion` son texto libre, sin catálogo fijo de especies ni
+geolocalización estructurada, para no inventar qué especies planta un
+municipio real que todavía no existe como piloto; que un único permiso
+`arbolado.gestionar` cubre alta y actualización de estado, asignado a
+ambos roles de sistema, mismo criterio que `obras.gestionar`; y que, con
+`arbolado` como segundo caso real del patrón "alta protegida + lectura
+pública + estado propio mutable" que ADR 0023 dejó pendiente, todavía no
+conviene extraer ninguna abstracción común con `obras` — se decide con un
+tercer caso real delante.
+
+Incluye:
+- Módulo `arbolado`, contratable, sin depender de ningún otro módulo
+  funcional (tampoco de `obras`). Registrar (`POST /api/arbolado`) y
+  actualizar estado (`PATCH /api/arbolado/{id}/estado`) requieren sesión y
+  el permiso `arbolado.gestionar`, asignado a **ambos** roles de sistema
+  (`administrador` y `agente`): es trabajo operativo de campo, no un acto
+  de gabinete. Listar (`GET /api/arbolado`, con filtros opcionales
+  combinables por `estado` y texto en especie/ubicación) es público, sin
+  sesión, sin identificador obligatorio.
+- Datos del alta: especie (texto libre), ubicación (texto libre, sin
+  geolocalización estructurada ni GIS — mismo criterio que Obras/Reclamos),
+  descripción opcional, fecha de plantación opcional. Una vez registrado,
+  estos campos no se editan por esta rebanada; solo el estado cambia.
+- Estado: enum fijo `PLANTADO, SANO, REQUIERE_INTERVENCION, RETIRADO` con
+  tabla de transiciones (`PLANTADO → SANO`, `SANO → REQUIERE_INTERVENCION`,
+  `REQUIERE_INTERVENCION → SANO`, `REQUIERE_INTERVENCION → RETIRADO`),
+  sin entidad de historial ni motor de workflow. Un árbol sano no pasa
+  directo a retirado: siempre queda un estado intermedio que documenta
+  que hubo un motivo antes del retiro.
+- Sin motivo del retiro/intervención como campo propio, sin catálogo fijo
+  de especies, sin geolocalización estructurada ni GIS, sin adjuntos/
+  fotos: fuera de alcance a propósito (ver ADR 0024).
+- **Test de aislamiento**: un árbol registrado en un municipio no es
+  visible en el listado ni actualizable desde otro.
+- Pantalla pública de búsqueda/listado con filtros (accesible, sin
+  cuenta), con las acciones de registrar y de cambiar estado visibles
+  solo para quien tiene `arbolado.gestionar`, mismas convenciones de foco
+  y anuncios (`role="status"`/`role="alert"`) que el resto del portal.
+
+Especificación completa en [spec CD-28](../../specs/CD-28-arbolado-urbano.md).
+
+Queda fuera de R20, explícitamente diferido (ver ADR 0024, Pendiente de
+definir): motivo del retiro o de la intervención, quién hizo cada cambio
+de estado (más allá de la marca de tiempo), edición de los campos del
+alta después de creado el registro, geolocalización estructurada/GIS
+como servicio, adjuntos/fotos, y las demás áreas de Ambiente y Servicios
+Públicos (recolección de residuos, alumbrado público, espacios verdes).
 
 ## Epic: Fase 5 — Áreas sociales
 
