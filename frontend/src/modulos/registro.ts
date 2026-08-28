@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 
+import { PantallaDeArbolado } from './arbolado/PantallaDeArbolado'
 import { PantallaDeBoletin } from './boletin/PantallaDeBoletin'
 import { PantallaDeCementerio } from './cementerio/PantallaDeCementerio'
 import { PantallaDeEjemplo } from './ejemplo/PantallaDeEjemplo'
@@ -40,4 +41,5 @@ export const registroDePantallasDeModulo: Record<string, ComponentType<PropsDePa
   proveedores: PantallaDeProveedores,
   multas: PantallaDeMultas,
   obras: PantallaDeObras,
+  arbolado: PantallaDeArbolado,
 }
