@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { PanelDeAuditoria } from './PanelDeAuditoria'
+import { PanelDeMiMunicipio } from './PanelDeMiMunicipio'
 import { PanelDeRoles } from './PanelDeRoles'
 import { PanelDeUsuarios } from './PanelDeUsuarios'
 import type { Usuario } from './useSesion'
@@ -23,6 +24,7 @@ export function PanelDeAdministracion({ usuario, onVolver }: Props) {
   const veUsuarios = puede('usuarios.ver') || puede('usuarios.administrar')
   const veRoles = puede('roles.ver') || puede('usuarios.administrar')
   const veAuditoria = puede('auditoria.ver')
+  const veMiMunicipio = puede('municipio.verContrato')
 
   const titulo = useRef<HTMLHeadingElement>(null)
 
@@ -49,9 +51,15 @@ export function PanelDeAdministracion({ usuario, onVolver }: Props) {
       {veUsuarios && <PanelDeUsuarios puedeAdministrar={puede('usuarios.administrar')} />}
       {veRoles && <PanelDeRoles puedeAdministrar={puede('roles.administrar')} />}
       {veAuditoria && <PanelDeAuditoria />}
+      {veMiMunicipio && (
+        <PanelDeMiMunicipio puedeSolicitar={puede('municipio.solicitarModulo')} />
+      )}
 
-      {!veUsuarios && !veRoles && !veAuditoria && (
-        <p role="status">No tenés permisos para administrar usuarios, roles ni auditoría.</p>
+      {!veUsuarios && !veRoles && !veAuditoria && !veMiMunicipio && (
+        <p role="status">
+          No tenés permisos para administrar usuarios, roles ni auditoría, ni ver el contrato del
+          municipio.
+        </p>
       )}
     </main>
   )

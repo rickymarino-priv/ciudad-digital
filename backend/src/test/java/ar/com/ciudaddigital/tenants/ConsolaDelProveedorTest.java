@@ -5,15 +5,21 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.test.web.servlet.MvcResult;
+
+import com.jayway.jsonpath.JsonPath;
 
 import ar.com.ciudaddigital.SoporteDeIntegracion;
 
@@ -194,6 +200,137 @@ class ConsolaDelProveedorTest extends SoporteDeIntegracion {
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(cuerpo))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("circuito feliz: una solicitud creada por el municipio se ve y se atiende desde la "
+            + "consola del proveedor, y el municipio ve el cambio")
+    void circuitoFelizDeSolicitudDeModulo() throws Exception {
+        MockHttpSession administradorDelMunicipio = iniciarSesionDeAdministrador(SLUG);
+
+        MvcResult resultadoDeAlta = mvc.perform(post(portalDe(SLUG, "/api/municipio/solicitudes-de-modulo"))
+                .session(administradorDelMunicipio)
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"moduloCodigo":"ejemplo","tipo":"ALTA","justificacion":"Lo pedimos desde el municipio."}"""))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long id = ((Number) JsonPath.read(resultadoDeAlta.getResponse().getContentAsString(), "$.id")).longValue();
+
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        mvc.perform(get("/api/admin/municipios/" + SLUG + "/solicitudes-de-modulo").session(plataforma))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(id))
+                .andExpect(jsonPath("$[0].estado").value("PENDIENTE"))
+                .andExpect(jsonPath("$[0].atendidaEn").doesNotExist());
+
+        mvc.perform(patch("/api/admin/municipios/" + SLUG + "/solicitudes-de-modulo/" + id + "/atender")
+                .session(plataforma)
+                .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("ATENDIDA"))
+                .andExpect(jsonPath("$.atendidaEn").exists());
+
+        mvc.perform(get("/api/admin/municipios/" + SLUG + "/solicitudes-de-modulo").session(plataforma))
+                .andExpect(jsonPath("$[0].estado").value("ATENDIDA"))
+                .andExpect(jsonPath("$[0].atendidaEn").exists());
+
+        mvc.perform(get(portalDe(SLUG, "/api/municipio/solicitudes-de-modulo")).session(administradorDelMunicipio))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].estado").value("ATENDIDA"))
+                .andExpect(jsonPath("$[0].atendidaEn").exists());
+    }
+
+    @Test
+    @DisplayName("atender una solicitud ya ATENDIDA da 400")
+    void atenderUnaSolicitudYaAtendidaDaBadRequest() throws Exception {
+        MockHttpSession administradorDelMunicipio = iniciarSesionDeAdministrador(SLUG);
+
+        MvcResult resultadoDeAlta = mvc.perform(post(portalDe(SLUG, "/api/municipio/solicitudes-de-modulo"))
+                .session(administradorDelMunicipio)
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"moduloCodigo":"ejemplo","tipo":"BAJA","justificacion":"Ya no lo usamos."}"""))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long id = ((Number) JsonPath.read(resultadoDeAlta.getResponse().getContentAsString(), "$.id")).longValue();
+
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        mvc.perform(patch("/api/admin/municipios/" + SLUG + "/solicitudes-de-modulo/" + id + "/atender")
+                .session(plataforma)
+                .with(csrf()))
+                .andExpect(status().isOk());
+
+        mvc.perform(patch("/api/admin/municipios/" + SLUG + "/solicitudes-de-modulo/" + id + "/atender")
+                .session(plataforma)
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("un id de solicitud inexistente, o de otro municipio, da el mismo código que el resto "
+            + "de la API de administración para 'no existe'")
+    void atenderUnaSolicitudInexistenteDaElMismoCodigoQueElRestoDeLaApi() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+
+        mvc.perform(patch("/api/admin/municipios/" + SLUG + "/solicitudes-de-modulo/999999/atender")
+                .session(plataforma)
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("cantidadDeSolicitudesPendientes sube al crear una solicitud y baja al atenderla")
+    void laCantidadDeSolicitudesPendientesSubeYBaja() throws Exception {
+        MockHttpSession administradorDelMunicipio = iniciarSesionDeAdministrador(SLUG);
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+
+        String listadoInicial = mvc.perform(get("/api/admin/municipios").session(plataforma))
+                .andReturn().getResponse().getContentAsString();
+        int pendientesIniciales = ((Number) ((List<?>) JsonPath.read(
+                listadoInicial, "$[?(@.slug=='" + SLUG + "')].cantidadDeSolicitudesPendientes")).get(0)).intValue();
+
+        MvcResult resultadoDeAlta = mvc.perform(post(portalDe(SLUG, "/api/municipio/solicitudes-de-modulo"))
+                .session(administradorDelMunicipio)
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"moduloCodigo":"ejemplo","tipo":"ALTA","justificacion":"Para contar pendientes."}"""))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long id = ((Number) JsonPath.read(resultadoDeAlta.getResponse().getContentAsString(), "$.id")).longValue();
+
+        mvc.perform(get("/api/admin/municipios").session(plataforma))
+                .andExpect(jsonPath("$[?(@.slug=='" + SLUG + "')].cantidadDeSolicitudesPendientes")
+                        .value(pendientesIniciales + 1));
+
+        mvc.perform(patch("/api/admin/municipios/" + SLUG + "/solicitudes-de-modulo/" + id + "/atender")
+                .session(plataforma)
+                .with(csrf()))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/admin/municipios").session(plataforma))
+                .andExpect(jsonPath("$[?(@.slug=='" + SLUG + "')].cantidadDeSolicitudesPendientes")
+                        .value(pendientesIniciales));
+    }
+
+    @Test
+    @DisplayName("solo una sesión de plataforma puede leer o atender las solicitudes de módulo de un municipio")
+    void soloUnaSesionDePlataformaPuedeOperarLasSolicitudesDeModulo() throws Exception {
+        mvc.perform(get("/api/admin/municipios/" + SLUG + "/solicitudes-de-modulo"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(patch("/api/admin/municipios/" + SLUG + "/solicitudes-de-modulo/1/atender").with(csrf()))
+                .andExpect(status().isUnauthorized());
+
+        MockHttpSession sesionDeMunicipio = iniciarSesionDeAdministrador(SLUG);
+        mvc.perform(get("/api/admin/municipios/" + SLUG + "/solicitudes-de-modulo").session(sesionDeMunicipio))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(patch("/api/admin/municipios/" + SLUG + "/solicitudes-de-modulo/1/atender")
+                .session(sesionDeMunicipio)
+                .with(csrf()))
                 .andExpect(status().isUnauthorized());
     }
 }

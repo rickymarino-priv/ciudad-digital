@@ -4,16 +4,29 @@ import { enviar, pedir } from '../acceso/api'
 import {
   ESTADOS_DE_FACTURACION,
   TEXTO_ESTADO_DE_FACTURACION,
+  TEXTO_ESTADO_DE_SOLICITUD,
+  TEXTO_TIPO_DE_SOLICITUD,
   TEXTO_TRAMO_POBLACIONAL,
   TRAMOS_POBLACIONALES,
   type ModulosDeMunicipioResponse,
   type MunicipioResponse,
+  type SolicitudDeModuloResponse,
 } from './tipos'
 
 type EstadoCatalogo =
   | { estado: 'cargando' }
   | { estado: 'listo'; modulos: ModulosDeMunicipioResponse['modulos'] }
   | { estado: 'error'; mensaje: string }
+
+type EstadoSolicitudes =
+  | { estado: 'cargando' }
+  | { estado: 'listo'; solicitudes: SolicitudDeModuloResponse[] }
+  | { estado: 'error'; mensaje: string }
+
+const FECHA_SOLICITUD = new Intl.DateTimeFormat('es-AR', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+})
 
 type Props = {
   slug: string
@@ -215,6 +228,85 @@ export function DetalleDeMunicipio({ slug, municipioInicial, onVolver }: Props) 
     }
   }
 
+  // --- Solicitudes de alta/baja de módulo ---
+
+  const [solicitudes, setSolicitudes] = useState<EstadoSolicitudes>({ estado: 'cargando' })
+  const [atendiendoId, setAtendiendoId] = useState<number | null>(null)
+  const [errorAtender, setErrorAtender] = useState<string | null>(null)
+
+  const errorAtenderRef = useRef<HTMLParagraphElement>(null)
+
+  const cargarSolicitudes = useCallback(async () => {
+    try {
+      const respuesta = await pedir<SolicitudDeModuloResponse[]>(
+        `/api/admin/municipios/${slug}/solicitudes-de-modulo`,
+        'No se pudo cargar las solicitudes de alta/baja de módulo.',
+      )
+      if (vigente.current) {
+        setSolicitudes({ estado: 'listo', solicitudes: respuesta })
+      }
+    } catch (fallo: unknown) {
+      if (vigente.current) {
+        setSolicitudes({
+          estado: 'error',
+          mensaje: fallo instanceof Error ? fallo.message : 'Error inesperado.',
+        })
+      }
+    }
+  }, [slug])
+
+  useEffect(() => {
+    // Carga inicial de datos remotos (mismo patrón que PanelDeAuditoria): el
+    // setState está protegido por `vigente`, no dispara un loop de renders.
+    // eslint-disable-next-line react/set-state-in-effect
+    void cargarSolicitudes()
+  }, [cargarSolicitudes])
+
+  useEffect(() => {
+    if (errorAtender) {
+      errorAtenderRef.current?.focus()
+    }
+  }, [errorAtender])
+
+  async function atenderSolicitud(id: number) {
+    setErrorAtender(null)
+    setAtendiendoId(id)
+    try {
+      const actualizada = await enviar<SolicitudDeModuloResponse>(
+        `/api/admin/municipios/${slug}/solicitudes-de-modulo/${id}/atender`,
+        'PATCH',
+        undefined,
+        'No se pudo marcar la solicitud como atendida.',
+      )
+      if (vigente.current && actualizada) {
+        setSolicitudes((actual) =>
+          actual.estado === 'listo'
+            ? {
+                estado: 'listo',
+                solicitudes: actual.solicitudes.map((solicitud) =>
+                  solicitud.id === actualizada.id ? actualizada : solicitud,
+                ),
+              }
+            : actual,
+        )
+        setMunicipio((actual) => ({
+          ...actual,
+          cantidadDeSolicitudesPendientes: Math.max(0, actual.cantidadDeSolicitudesPendientes - 1),
+        }))
+      }
+    } catch (fallo: unknown) {
+      if (vigente.current) {
+        setErrorAtender(
+          fallo instanceof Error ? fallo.message : 'No se pudo marcar la solicitud como atendida.',
+        )
+      }
+    } finally {
+      if (vigente.current) {
+        setAtendiendoId(null)
+      }
+    }
+  }
+
   const idErrorModulos = 'error-modulos'
   const idExitoModulos = 'exito-modulos'
   const idErrorComercial = 'error-comercial'
@@ -367,6 +459,71 @@ export function DetalleDeMunicipio({ slug, municipioInicial, onVolver }: Props) 
             </button>
           </div>
         </form>
+      </section>
+
+      <section aria-labelledby="titulo-solicitudes-modulo">
+        <h2 id="titulo-solicitudes-modulo">Solicitudes de alta/baja de módulo</h2>
+
+        {errorAtender && (
+          <p className="formulario__error" role="alert" tabIndex={-1} ref={errorAtenderRef}>
+            {errorAtender}
+          </p>
+        )}
+
+        {solicitudes.estado === 'cargando' && (
+          <p role="status">Cargando las solicitudes de alta/baja de módulo…</p>
+        )}
+        {solicitudes.estado === 'error' && <p role="alert">{solicitudes.mensaje}</p>}
+
+        {solicitudes.estado === 'listo' &&
+          (solicitudes.solicitudes.length === 0 ? (
+            <p>Este municipio todavía no hizo ninguna solicitud de alta o baja de módulo.</p>
+          ) : (
+            <div className="tabla-contenedor">
+              <table className="tabla">
+                <caption>
+                  Solicitudes de alta o baja de módulo hechas por este municipio, de la más
+                  reciente a la más antigua.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Módulo</th>
+                    <th scope="col">Tipo</th>
+                    <th scope="col">Justificación</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Fecha</th>
+                    <th scope="col">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {solicitudes.solicitudes.map((solicitud) => (
+                    <tr key={solicitud.id}>
+                      <th scope="row">{solicitud.moduloCodigo}</th>
+                      <td>{TEXTO_TIPO_DE_SOLICITUD[solicitud.tipo] ?? solicitud.tipo}</td>
+                      <td>{solicitud.justificacion}</td>
+                      <td>{TEXTO_ESTADO_DE_SOLICITUD[solicitud.estado] ?? solicitud.estado}</td>
+                      <td>{FECHA_SOLICITUD.format(new Date(solicitud.creadaEn))}</td>
+                      <td>
+                        {solicitud.estado === 'PENDIENTE' ? (
+                          <button
+                            type="button"
+                            className="boton boton--secundario"
+                            disabled={atendiendoId === solicitud.id}
+                            aria-busy={atendiendoId === solicitud.id}
+                            onClick={() => void atenderSolicitud(solicitud.id)}
+                          >
+                            {atendiendoId === solicitud.id ? 'Marcando…' : 'Marcar atendida'}
+                          </button>
+                        ) : (
+                          'Sin acciones'
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
       </section>
     </main>
   )
