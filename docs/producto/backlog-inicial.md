@@ -1073,6 +1073,85 @@ estado actual del módulo, y edición o retiro de una solicitud ya creada.
 Obras Públicas, Catastro, Planeamiento Urbano, Ambiente y Servicios
 Públicos, GIS como servicio consolidado.
 
+### R19 · El municipio registra una obra pública en curso y cualquiera ve su estado de avance
+
+**Demo**: un agente municipal (con sesión y permiso `obras.gestionar`)
+registra una obra pública nueva: nombre, tipo, ubicación, fechas
+estimadas de inicio y fin. Queda creada en estado "Planificada". Un
+vecino, sin sesión, entra al portal público, filtra por estado y por
+tipo, busca por texto, y encuentra esa obra listada con su estado
+actual. El mismo agente actualiza el estado a "En ejecución"; al volver
+a consultar, el vecino ve el estado actualizado. La misma obra no
+aparece en el portal de otro municipio.
+
+Abre Fase 4 por descarte razonado de las otras candidatas del epic (ver
+[ADR 0023](../arquitectura/decisiones/0023-obras-publicas-registro-publico-con-estado-propio-actualizable.md),
+Contexto): Catastro depende de datos provinciales reales (el propio
+roadmap ya lo señala como candidato a dejar para tarde); GIS como
+servicio consolidado es una pieza de infraestructura transversal, no una
+rebanada demostrable por sí sola; Planeamiento Urbano/Uso del Suelo
+depende del código de zonificación propio de cada municipio, mismo tipo
+de riesgo que ya llevó a diferir Compras en Fase 3. Ambiente y Servicios
+Públicos queda como candidata natural de la siguiente rebanada de la
+fase, no descartada por inviable. Obras Públicas es, en forma y en
+riesgo, el mismo tipo de rebanada que Boletín Oficial (R7) y
+Transparencia activa (R11): dato público sin inventar cifras ni régimen
+legal, con la diferencia de que acá el registro sí muta después de
+creado (solo el campo `estado`, con una tabla de transiciones fija) para
+que tenga sentido como seguimiento de una obra en curso.
+
+Requiere [ADR 0023](../arquitectura/decisiones/0023-obras-publicas-registro-publico-con-estado-propio-actualizable.md):
+decide que el estado de una obra puede mutar después de creada —a
+diferencia de Boletín/Transparencia, que no editan nunca un registro
+publicado— acotando esa mutabilidad exclusivamente al campo `estado`
+mediante una tabla de transiciones codificada en el servicio (mismo
+patrón que Reclamos/Multas, no el motor de expediente de ADR 0015), y
+que un único permiso `obras.gestionar` cubre tanto el alta como la
+actualización de estado, sin la separación de sensibilidad que sí
+justifica `multas.labrar`/`multas.resolverDescargo`.
+
+Incluye:
+- Módulo `obras`, contratable, sin depender de ningún otro módulo
+  funcional. Registrar (`POST /api/obras`) y actualizar estado
+  (`PATCH /api/obras/{id}/estado`) requieren sesión y el permiso
+  `obras.gestionar`, asignado a **ambos** roles de sistema
+  (`administrador` y `agente`): es trabajo operativo de seguimiento de
+  obra, no un acto de gabinete. Listar (`GET /api/obras`, con filtros
+  opcionales combinables por `estado`, `tipo` y texto en nombre/
+  ubicación) es público, sin sesión, sin identificador obligatorio —a
+  diferencia de `tasas`/`multas`, es un registro público general, no una
+  consulta puntual sobre un dato del vecino.
+- Datos del alta: nombre, tipo (enum fijo: vialidad, espacio público,
+  edificio público, servicios, otra), ubicación (texto libre, sin
+  geolocalización estructurada ni GIS — se difiere hasta que exista GIS
+  como servicio o un segundo módulo lo justifique), descripción
+  opcional, fechas estimadas de inicio y fin opcionales. Una vez
+  registrada, estos campos no se editan por esta rebanada —igual
+  criterio que Boletín/Transparencia—; solo el estado cambia.
+- Estado: enum fijo `PLANIFICADA, EN_EJECUCION, PARALIZADA, FINALIZADA`
+  con tabla de transiciones (`PLANIFICADA → EN_EJECUCION`,
+  `EN_EJECUCION → PARALIZADA`, `EN_EJECUCION → FINALIZADA`,
+  `PARALIZADA → EN_EJECUCION`; `FINALIZADA` terminal), sin entidad de
+  historial ni motor de workflow.
+- Sin certificaciones de avance, montos ni contratista: esos datos
+  pertenecen a Presupuesto y Contabilidad, todavía diferido.
+- **Test de aislamiento**: una obra registrada en un municipio no es
+  visible en el listado ni actualizable desde otro.
+- Pantalla pública de búsqueda/listado con filtros (accesible, sin
+  cuenta), con las acciones de registrar y de cambiar estado visibles
+  solo para quien tiene `obras.gestionar`, mismas convenciones de foco y
+  anuncios (`role="status"`/`role="alert"`) que el resto del portal.
+
+Especificación completa en [spec CD-27](../../specs/CD-27-obras-publicas.md).
+
+Queda fuera de R19, explícitamente diferido (ver ADR 0023, Pendiente de
+definir): certificaciones de avance/montos/contratista, geolocalización
+estructurada/GIS como servicio, edición de los campos del alta después
+de creada la obra, quién hizo cada cambio de estado (más allá de la
+marca de tiempo), adjuntos/fotos, notificación al vecino de obras
+cercanas, y las demás candidatas de Fase 4 (Catastro, Planeamiento
+Urbano/Uso del Suelo, Ambiente y Servicios Públicos).
+
 ## Epic: Fase 5 — Áreas sociales
 
 Desarrollo Social, Discapacidad, Salud municipal, Educación municipal.
