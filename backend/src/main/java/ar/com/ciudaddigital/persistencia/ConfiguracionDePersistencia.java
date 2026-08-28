@@ -131,6 +131,9 @@ class ConfiguracionDePersistencia {
     /** Multas de tránsito del Juzgado de Faltas del municipio (R17, ADR 0021). */
     static final String PAQUETE_MULTAS = "ar.com.ciudaddigital.multas";
 
+    /** Obras públicas en curso del municipio (R19, ADR 0023). */
+    static final String PAQUETE_OBRAS = "ar.com.ciudaddigital.obras";
+
     /**
      * Entidad de Spring Modulith que registra las publicaciones de eventos
      * (tabla {@code event_publication}). Vive en la base de tenant, no en
@@ -160,7 +163,7 @@ class ConfiguracionDePersistencia {
             basePackages = {
                     PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS, PAQUETE_BOLETIN,
                     PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS,
-                    PAQUETE_PROVEEDORES, PAQUETE_MULTAS },
+                    PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS },
             entityManagerFactoryRef = "tenantEntityManagerFactory",
             transactionManagerRef = "tenantTransactionManager")
     static class RepositoriosDeTenant {
@@ -235,7 +238,7 @@ class ConfiguracionDePersistencia {
         emf.setPackagesToScan(
                 PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS, PAQUETE_BOLETIN,
                 PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS,
-                PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_EVENTOS);
+                PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_EVENTOS);
         emf.setPersistenceUnitName("tenant");
         emf.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         emf.setJpaPropertyMap(propiedadesDeTenant());
