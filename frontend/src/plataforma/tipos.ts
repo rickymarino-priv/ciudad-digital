@@ -14,6 +14,7 @@ export type MunicipioResponse = {
   estadoFacturacion: string
   notaFacturacion: string | null
   cantidadDeModulosContratados: number
+  cantidadDeSolicitudesPendientes: number
 }
 
 export type ModuloDeMunicipio = {
@@ -26,6 +27,27 @@ export type ModuloDeMunicipio = {
 export type ModulosDeMunicipioResponse = {
   slug: string
   modulos: ModuloDeMunicipio[]
+}
+
+/** Pedido de un municipio de alta o baja de un módulo (ADR 0022), tal como lo ve la plataforma. */
+export type SolicitudDeModuloResponse = {
+  id: number
+  moduloCodigo: string
+  tipo: string
+  justificacion: string
+  estado: string
+  creadaEn: string
+  atendidaEn: string | null
+}
+
+export const TEXTO_TIPO_DE_SOLICITUD: Record<string, string> = {
+  ALTA: 'Alta',
+  BAJA: 'Baja',
+}
+
+export const TEXTO_ESTADO_DE_SOLICITUD: Record<string, string> = {
+  PENDIENTE: 'Pendiente',
+  ATENDIDA: 'Atendida',
 }
 
 /** Tramos poblacionales válidos (ADR 0019 §1), en el orden en que se listan. */

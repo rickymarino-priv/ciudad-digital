@@ -1,5 +1,7 @@
 package ar.com.ciudaddigital.tenants.internal;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -37,15 +39,18 @@ class AdministracionDeMunicipiosController {
     private final MigradorDeTenant migrador;
     private final AdministracionDeModulos administracionDeModulos;
     private final InformacionComercialDeMunicipios informacionComercial;
+    private final SolicitudDeModuloRepository solicitudDeModuloRepositorio;
 
     AdministracionDeMunicipiosController(AltaDeMunicipio alta, TenantRepository repositorio,
             MigradorDeTenant migrador, AdministracionDeModulos administracionDeModulos,
-            InformacionComercialDeMunicipios informacionComercial) {
+            InformacionComercialDeMunicipios informacionComercial,
+            SolicitudDeModuloRepository solicitudDeModuloRepositorio) {
         this.alta = alta;
         this.repositorio = repositorio;
         this.migrador = migrador;
         this.administracionDeModulos = administracionDeModulos;
         this.informacionComercial = informacionComercial;
+        this.solicitudDeModuloRepositorio = solicitudDeModuloRepositorio;
     }
 
     @PostMapping
@@ -165,6 +170,42 @@ class AdministracionDeMunicipiosController {
         return describir(tenant);
     }
 
+    /**
+     * Solicitudes de alta/baja de módulo de un municipio, más reciente
+     * primero (ADR 0022 §2). Cross-tenant y de plataforma, como el resto de
+     * este controller: la solicitud vive en la base de control, así que no
+     * hace falta pasar por ninguna interfaz pública para leerla —a
+     * diferencia de {@code ConsolaDelMunicipioController}, que sí necesita
+     * esa indirección porque corre en la base de tenant.
+     */
+    @GetMapping("/{slug}/solicitudes-de-modulo")
+    List<SolicitudDeModuloAdminResponse> solicitudesDeModulo(@PathVariable String slug) {
+        TenantEntity tenant = administracionDeModulos.municipio(slug);
+        return solicitudDeModuloRepositorio.findByTenantIdOrderByCreadaEnDesc(tenant.getId()).stream()
+                .map(SolicitudDeModuloAdminResponse::de)
+                .toList();
+    }
+
+    /**
+     * Marca una solicitud como atendida (ADR 0022 §3): deja constancia de
+     * que la plataforma la vio y actuó por fuera del sistema, con el
+     * mecanismo ya existente. Nunca prende ni apaga el módulo por sí sola.
+     */
+    @PatchMapping("/{slug}/solicitudes-de-modulo/{id}/atender")
+    SolicitudDeModuloAdminResponse atenderSolicitudDeModulo(@PathVariable String slug, @PathVariable Long id) {
+        TenantEntity tenant = administracionDeModulos.municipio(slug);
+        SolicitudDeModuloEntity solicitud = solicitudDeModuloRepositorio.findByIdAndTenantId(id, tenant.getId())
+                // Mismo código que "no existe el municipio" (SolicitudInvalida → 400): este
+                // controller no tiene hoy ningún 404, la spec sugería 404 para "no existe la
+                // solicitud" pero se prioriza la consistencia con lo que ya hace este archivo
+                // por sobre el código HTTP exacto sugerido.
+                .orElseThrow(() -> new SolicitudInvalida(
+                        "No hay ninguna solicitud con el id " + id + " para el municipio " + slug + "."));
+
+        solicitud.marcarAtendida();
+        return SolicitudDeModuloAdminResponse.de(solicitudDeModuloRepositorio.save(solicitud));
+    }
+
     private ModulosDeMunicipioResponse describirModulos(TenantEntity tenant) {
         return new ModulosDeMunicipioResponse(
                 tenant.getSlug(), administracionDeModulos.describir(tenant));
@@ -179,6 +220,9 @@ class AdministracionDeMunicipiosController {
                 ? 0
                 : tenant.getConfig().modulosHabilitados().size();
 
+        int cantidadDeSolicitudesPendientes = (int) solicitudDeModuloRepositorio.countByTenantIdAndEstado(
+                tenant.getId(), EstadoDeSolicitudDeModulo.PENDIENTE);
+
         return new MunicipioResponse(
                 tenant.getSlug(),
                 tenant.getNombreMunicipio(),
@@ -189,7 +233,8 @@ class AdministracionDeMunicipiosController {
                 tenant.getTramoPoblacional().name(),
                 tenant.getEstadoFacturacion().name(),
                 tenant.getNotaFacturacion(),
-                cantidadDeModulosContratados);
+                cantidadDeModulosContratados,
+                cantidadDeSolicitudesPendientes);
     }
 
     @ExceptionHandler(SolicitudInvalida.class)
@@ -200,6 +245,12 @@ class AdministracionDeMunicipiosController {
     @ExceptionHandler(AprovisionamientoFallido.class)
     ResponseEntity<ErrorResponse> aprovisionamientoFallido(AprovisionamientoFallido e) {
         return ResponseEntity.internalServerError().body(new ErrorResponse(e.getMessage()));
+    }
+
+    /** Atender una solicitud que ya estaba {@code ATENDIDA} (ADR 0022 §3). */
+    @ExceptionHandler(IllegalStateException.class)
+    ResponseEntity<ErrorResponse> solicitudDeModuloYaAtendida(IllegalStateException e) {
+        return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
     }
 
     record AltaRequest(
@@ -223,13 +274,40 @@ class AdministracionDeMunicipiosController {
             String tramoPoblacional,
             String estadoFacturacion,
             String notaFacturacion,
-            int cantidadDeModulosContratados) {
+            int cantidadDeModulosContratados,
+            int cantidadDeSolicitudesPendientes) {
     }
 
     record MigracionResponse(String slug, String versionDeEsquema, String error) {
     }
 
     record ModulosRequest(List<String> modulos) {
+    }
+
+    /**
+     * Shape propio de este controller, distinto del
+     * {@code SolicitudDeModuloResponse} de {@code municipio.internal}: son
+     * módulos separados, cada uno con su propio ciclo de vida de contrato
+     * de API (ADR 0022 §2).
+     */
+    record SolicitudDeModuloAdminResponse(
+            Long id, String moduloCodigo, String tipo, String justificacion, String estado,
+            Instant creadaEn, Instant atendidaEn) {
+
+        static SolicitudDeModuloAdminResponse de(SolicitudDeModuloEntity solicitud) {
+            return new SolicitudDeModuloAdminResponse(
+                    solicitud.getId(),
+                    solicitud.getModuloCodigo(),
+                    solicitud.getTipo().name(),
+                    solicitud.getJustificacion(),
+                    solicitud.getEstado().name(),
+                    instanteDe(solicitud.getCreadaEn()),
+                    instanteDe(solicitud.getAtendidaEn()));
+        }
+
+        private static Instant instanteDe(OffsetDateTime fecha) {
+            return fecha == null ? null : fecha.toInstant();
+        }
     }
 
     record ComercialRequest(String tramoPoblacional, String estadoFacturacion, String notaFacturacion) {

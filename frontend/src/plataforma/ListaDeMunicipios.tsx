@@ -78,6 +78,7 @@ export function ListaDeMunicipios({ onVerDetalle }: Props) {
                 <th scope="col">Tramo poblacional</th>
                 <th scope="col">Estado de facturación</th>
                 <th scope="col">Módulos contratados</th>
+                <th scope="col">Solicitudes pendientes</th>
                 <th scope="col">Acción</th>
               </tr>
             </thead>
@@ -106,6 +107,7 @@ export function ListaDeMunicipios({ onVerDetalle }: Props) {
                     )}
                   </td>
                   <td>{municipio.cantidadDeModulosContratados}</td>
+                  <td>{municipio.cantidadDeSolicitudesPendientes}</td>
                   <td>
                     <button
                       type="button"

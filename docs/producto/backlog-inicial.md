@@ -35,6 +35,7 @@ diseñe cada fase.
 | CD-23 | R15 · El proveedor de la plataforma ve y gestiona el contrato de sus municipios clientes |
 | CD-24 | R16 · Un proveedor se registra y el municipio ve su situación fiscal validada contra AFIP (simulado) |
 | CD-25 | R17 · Un agente de tránsito labra una multa y el vecino la paga con descuento, o la impugna (parent: CD-4) |
+| CD-26 | R18 · El municipio ve su contrato y sus módulos, y pide un alta o baja (parent: CD-4) |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -989,6 +990,83 @@ homologado (RAFAM), con adopción muy alta en los municipios bonaerenses.
 Construirlo ahora compite con algo gratuito y adoptado, sin saber si el
 municipio piloto necesita integrarse con RAFAM o reemplazarlo — queda sin
 desarrollar hasta esa decisión (ver ADR 0021, Contexto).
+
+### Tesorería — diferido
+
+El [catálogo funcional](catalogo-funcional.md) describe "Tesorería y
+Recaudación" como cobranzas, conciliación bancaria y gestión de deuda:
+necesita el mismo libro contable que Presupuesto y Contabilidad (RAFAM u
+homólogo) para conciliar contra algo. Misma razón de fondo que el ítem de
+arriba — queda sin desarrollar hasta la misma decisión.
+
+### R18 · El municipio ve su contrato y sus módulos, y pide un alta o baja
+
+**Demo**: un administrador del municipio (no un agente) inicia sesión y
+entra a "Administración". Adentro, junto a Usuarios, Roles y Auditoría, ve
+una sección nueva "Mi municipio": la lista de módulos que tiene contratados
+(de solo lectura), su tramo poblacional y su estado de facturación (de
+solo lectura, sin la nota interna que solo ve la plataforma), y un
+formulario para pedir el alta o la baja de un módulo con una justificación
+en texto libre. Envía un pedido de alta de un módulo que no tiene
+contratado y lo ve aparecer en su propio historial como "Pendiente". Un
+usuario de plataforma, en la consola del proveedor (`admin.localhost`),
+entra al detalle de ese municipio y ve el mismo pedido listado; lo marca
+"Atendida" después de resolverlo por fuera (prendiendo el módulo con el
+mecanismo ya existente de ADR 0012 §8, sin automatizar nada). Al volver a
+consultar, el municipio ve su pedido como "Atendida".
+
+Cierra el último ítem construible de Fase 3 sin un municipio piloto real:
+de los cuatro puntos que el roadmap agrupa bajo "Consola del municipio",
+administración de usuarios ya existía (R3) y módulos activos ya era un
+dato público (`GET /api/modulos`, ADR 0012 §7); lo nuevo es mostrarle al
+municipio su propio estado de facturación (que ya existía, pero solo del
+lado de la plataforma, ADR 0019) y darle una forma de pedir un cambio de
+módulos sin poder aplicarlo él mismo.
+
+Requiere [ADR 0022](../arquitectura/decisiones/0022-consola-del-municipio-contrato-de-solo-lectura-y-solicitud-de-modulo.md):
+resuelve dónde vive una solicitud de alta/baja de módulo (en la base de
+control, asociada al tenant, porque es dato contractual — no operativo —
+y es lo único que le permite a la consola del proveedor listarla sin
+violar ADR 0019 §5) y qué parte del contrato ve el propio municipio
+(tramo y estado de facturación sí, la nota interna de la plataforma no).
+
+Incluye:
+- Interfaces públicas nuevas de `tenants`: `ContratoDelTenant` (tramo +
+  estado de facturación del tenant del request en curso) y
+  `SolicitudesDeModulo` (crear y listar las solicitudes del tenant del
+  request en curso), ambas consumidas por un controller nuevo en
+  `municipio.internal` (canon base, mismo criterio que `ContactoController`).
+- Tabla nueva `solicitud_modulo` en `db/control` (`tenant_id`, código de
+  módulo, tipo `ALTA`/`BAJA`, justificación, estado
+  `PENDIENTE`/`ATENDIDA`, copia del actor que la creó).
+- `AdministracionDeMunicipiosController` (cross-tenant, ya existente)
+  extendido con listado de solicitudes por municipio y marcarla
+  `ATENDIDA`; `MunicipioResponse` suma `cantidadDeSolicitudesPendientes`.
+- Dos permisos nuevos, ambos solo para `administrador` (no `agente`):
+  `municipio.verContrato` y `municipio.solicitarModulo` — mismo criterio
+  de reserva que `boletin.publicar`/`tasas.publicar`.
+- Frontend: nueva sección dentro de `PanelDeAdministracion` (junto a
+  Usuarios, Roles y Auditoría) con los módulos contratados, el contrato de
+  solo lectura y el formulario de solicitud con su historial; extensión de
+  `DetalleDeMunicipio` en la consola del proveedor con las solicitudes
+  recibidas y la acción de marcarlas atendidas.
+- **Test de aislamiento**: un municipio no ve ni puede crear solicitudes
+  de otro (el `tenant_id` sale de `TenantContext`, nunca de un campo que
+  mande el cliente); solo una sesión de usuario de plataforma —nunca una
+  de municipio, nunca anónima— puede listar o atender solicitudes de
+  cualquier municipio vía `/api/admin/municipios/**`.
+- Pantalla accesible dentro de la administración, con las mismas
+  convenciones de foco y anuncios (`role="status"`/`role="alert"`) que el
+  resto de `PanelDeAdministracion`.
+
+Queda fuera de R18, explícitamente diferido (ver ADR 0022, Pendiente de
+definir): automatizar el alta/baja real de un módulo al crear o atender
+una solicitud (sigue siendo, a propósito, una operación manual de
+plataforma, ADR 0012 §8), notificación por email a la plataforma cuando
+entra una solicitud nueva, auditoría transversal de estas acciones
+(mismo pendiente que ya dejó ADR 0013 para la API de administración
+cross-tenant), validación cruzada entre el tipo de la solicitud y el
+estado actual del módulo, y edición o retiro de una solicitud ya creada.
 
 ## Epic: Fase 4 — Gestión territorial
 
