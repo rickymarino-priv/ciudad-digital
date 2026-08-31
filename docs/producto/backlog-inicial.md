@@ -37,8 +37,17 @@ diseñe cada fase.
 | CD-25 | R17 · Un agente de tránsito labra una multa y el vecino la paga con descuento, o la impugna (parent: CD-4) |
 | CD-26 | R18 · El municipio ve su contrato y sus módulos, y pide un alta o baja (parent: CD-4) |
 | CD-27 | R19 · El municipio registra una obra pública en curso y cualquiera ve su estado de avance (parent: CD-5) |
-| CD-28 | R20 · El municipio registra un árbol urbano y cualquiera ve su estado sanitario (parent: CD-5) |
-| CD-29 | R21 · Un vecino se inscribe a un programa social y el municipio evalúa su solicitud, sin exponerla públicamente (parent: CD-6) |
+| CD-29 | R20 · El municipio registra un árbol urbano y cualquiera ve su estado sanitario (parent: CD-5) |
+| CD-30 | R21 · Un vecino se inscribe a un programa social y el municipio evalúa su solicitud, sin exponerla públicamente (parent: CD-6) |
+
+> Nota: R20 y R21 se implementaron con las ramas `CD-28-...`/`CD-29-...`
+> como placeholders, elegidos antes de saber el número real de ticket
+> (el MCP de Jira estuvo bloqueado por un CAPTCHA al momento de
+> implementarlas — ver memoria de proceso). Los números reales de Jira
+> son los de esta tabla (CD-29 para R20, CD-30 para R21), no los que
+> aparecen en el nombre de rama o en el nombre de archivo de sus specs.
+> `CD-28` quedó como un Epic duplicado de CD-6, creado por error y
+> cerrado sin uso — no lo uses como referencia.
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
