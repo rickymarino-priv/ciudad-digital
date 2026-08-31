@@ -146,6 +146,9 @@ class ConfiguracionDePersistencia {
     /** Gacetillas de prensa del municipio (R23, ADR 0027). */
     static final String PAQUETE_PRENSA = "ar.com.ciudaddigital.prensa";
 
+    /** Instituciones educativas municipales del municipio (R24, ADR 0028). */
+    static final String PAQUETE_EDUCACION = "ar.com.ciudaddigital.educacion";
+
     /**
      * Entidad de Spring Modulith que registra las publicaciones de eventos
      * (tabla {@code event_publication}). Vive en la base de tenant, no en
@@ -176,7 +179,7 @@ class ConfiguracionDePersistencia {
                     PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS, PAQUETE_BOLETIN,
                     PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS,
                     PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_ARBOLADO,
-                    PAQUETE_DESARROLLOSOCIAL, PAQUETE_TURNOS, PAQUETE_PRENSA },
+                    PAQUETE_DESARROLLOSOCIAL, PAQUETE_TURNOS, PAQUETE_PRENSA, PAQUETE_EDUCACION },
             entityManagerFactoryRef = "tenantEntityManagerFactory",
             transactionManagerRef = "tenantTransactionManager")
     static class RepositoriosDeTenant {
@@ -252,7 +255,7 @@ class ConfiguracionDePersistencia {
                 PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS, PAQUETE_BOLETIN,
                 PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS,
                 PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_ARBOLADO, PAQUETE_DESARROLLOSOCIAL,
-                PAQUETE_TURNOS, PAQUETE_PRENSA, PAQUETE_EVENTOS);
+                PAQUETE_TURNOS, PAQUETE_PRENSA, PAQUETE_EDUCACION, PAQUETE_EVENTOS);
         emf.setPersistenceUnitName("tenant");
         emf.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         emf.setJpaPropertyMap(propiedadesDeTenant());
