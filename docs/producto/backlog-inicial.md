@@ -41,6 +41,7 @@ diseñe cada fase.
 | CD-30 | R21 · Un vecino se inscribe a un programa social y el municipio evalúa su solicitud, sin exponerla públicamente (parent: CD-6) |
 | CD-31 (placeholder, sin confirmar) | R22 · Un vecino reserva un turno para una actividad municipal con cupo limitado, y el municipio administra la agenda (parent: CD-7, sin confirmar) |
 | CD-32 (placeholder, sin confirmar) | R23 · El municipio publica una gacetilla de prensa y cualquiera la encuentra (parent: CD-7, sin confirmar) |
+| CD-33 (placeholder, sin confirmar) | R24 · El municipio registra una institución educativa municipal y cualquiera ve su estado (parent: CD-6, sin confirmar) |
 
 > Nota: R20 y R21 se implementaron con las ramas `CD-28-...`/`CD-29-...`
 > como placeholders, elegidos antes de saber el número real de ticket
@@ -66,6 +67,15 @@ diseñe cada fase.
 > elegido por continuidad numérica (siguiente a CD-31), no confirmado
 > contra Jira. La sesión principal tiene que cargar R23 en Jira y
 > corregir esta fila con los números reales.
+>
+> Nota: R24 se planificó (rama `CD-33-...`, spec
+> `specs/CD-33-...md`) sin acceso al MCP de Jira desde este worktree —
+> misma limitación conocida que R20/R21/R22/R23. `CD-33` es un
+> placeholder elegido por continuidad numérica (siguiente a CD-32), no
+> confirmado contra Jira; tampoco se confirmó que `CD-6` sea realmente el
+> Epic de Fase 5 en Jira (viene de la tabla original, no reverificado
+> acá). La sesión principal tiene que cargar R24 en Jira y corregir esta
+> fila con los números reales.
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -1372,11 +1382,88 @@ notificación al vecino de un cambio de estado, rate limiting, política de
 retención de datos, y edición de los campos del alta después de creado
 el registro.
 
-Fase 5 queda en una sola rebanada por ahora (mismo patrón que Fase 3):
-R22 elige otra fase en vez de una segunda rebanada acá — ver
+Fase 5 quedó en una sola rebanada durante R22/R23 (mismo patrón que
+Fase 3 en su momento): R22 y R23 eligieron abrir Fase 6 en vez de dar una
+segunda rebanada acá — ver
 [ADR 0026](../arquitectura/decisiones/0026-turnos-actividades-municipales-reserva-con-cupo-primera-rebanada-de-fase-6.md),
-Contexto. Educación municipal sigue disponible como candidata futura de
-Fase 5; Salud municipal y Discapacidad siguen diferidas sin cambios.
+Contexto. R24 la cierra con una segunda rebanada, Educación municipal.
+
+### R24 · El municipio registra una institución educativa municipal y cualquiera ve su estado
+
+**Demo**: un agente municipal (con sesión y permiso `educacion.gestionar`)
+da de alta una institución educativa municipal: nombre, tipo ("Jardín de
+infantes"), ubicación, descripción opcional. Queda creada en estado
+"Activa". Un vecino, sin sesión, entra al portal público, filtra por tipo
+y por estado, busca por texto, y encuentra esa institución listada con su
+estado actual. El mismo agente actualiza el estado a "Cerrada
+temporalmente" y después a "Cerrada definitivamente"; al volver a
+consultar, el vecino ve el estado actualizado y que ya no admite más
+cambios. La misma institución no aparece en el portal de otro municipio.
+
+Cierra Fase 5 — Áreas sociales con una segunda rebanada, por descarte
+razonado (ver
+[ADR 0028](../arquitectura/decisiones/0028-educacion-municipal-padron-de-instituciones-segunda-rebanada-de-fase-5.md),
+Contexto): Salud municipal y Discapacidad siguen diferidas como fase
+completa, sin cambios respecto de ADR 0025 (dependen de un mecanismo de
+datos sensibles más maduro y de un municipio piloto real). Educación
+municipal es la única candidata de riesgo bajo que quedaba disponible —
+ADR 0025 ya la había identificado como viable sin dato personal, aunque
+sin aportar un mecanismo técnico nuevo frente a Obras/Arbolado (mismo
+catálogo con estado propio). Esta rebanada acota explícitamente el
+alcance a la competencia municipal real en educación en Argentina:
+jardines maternales/de infantes y centros de formación profesional, no
+escuelas primarias/secundarias (competencia provincial, no municipal).
+
+Requiere [ADR 0028](../arquitectura/decisiones/0028-educacion-municipal-padron-de-instituciones-segunda-rebanada-de-fase-5.md):
+decide un módulo nuevo `educacion`, mismo patrón "alta protegida +
+lectura pública + estado propio mutable" que Obras/Arbolado, sin
+extraer ninguna abstracción común con ellos (tercer caso del patrón,
+pregunta que dejó pendiente ADR 0024 §7 y que esta ADR resuelve por que
+no: las reglas de transición y los campos propios de las tres entidades
+siguen sin coincidir). A diferencia de Desarrollo Social, esta rebanada
+no toca ningún dato personal.
+
+Incluye:
+- Módulo `educacion`, contratable, sin depender de ningún otro módulo
+  funcional. Registrar (`POST /api/educacion`) y actualizar estado
+  (`PATCH /api/educacion/{id}/estado`) requieren sesión y el permiso
+  `educacion.gestionar`, asignado a **ambos** roles de sistema
+  (`administrador` y `agente`). Listar (`GET /api/educacion`, con
+  filtros opcionales combinables por `estado`, `tipo` y texto en
+  nombre/ubicación) es público, sin sesión, sin identificador
+  obligatorio.
+- Datos del alta: nombre, tipo (enum fijo y acotado a competencia
+  municipal real: jardín maternal, jardín de infantes, centro de
+  formación profesional, otra — a propósito, sin escuela primaria ni
+  secundaria), ubicación (texto libre, sin geolocalización estructurada
+  ni GIS), descripción opcional. Una vez registrada, estos campos no se
+  editan por esta rebanada; solo el estado cambia.
+- Estado: enum fijo `ACTIVA, CERRADA_TEMPORALMENTE,
+  CERRADA_DEFINITIVAMENTE` con tabla de transiciones (`ACTIVA →
+  CERRADA_TEMPORALMENTE`, `CERRADA_TEMPORALMENTE → ACTIVA`,
+  `CERRADA_TEMPORALMENTE → CERRADA_DEFINITIVAMENTE`;
+  `CERRADA_DEFINITIVAMENTE` terminal), sin entidad de historial ni motor
+  de workflow.
+- Sin cupos/vacantes ni inscripción de personas: reabriría la pregunta
+  de dato personal (y, acá, de menores) que ADR 0025 ya resolvió con
+  cuidado para Desarrollo Social — fuera de alcance a propósito.
+- **Test de aislamiento**: una institución registrada en un municipio no
+  es visible en el listado ni actualizable desde otro.
+- Pantalla pública de búsqueda/listado con filtros (accesible, sin
+  cuenta), con las acciones de registrar y de cambiar estado visibles
+  solo para quien tiene `educacion.gestionar`, mismas convenciones de
+  foco y anuncios (`role="status"`/`role="alert"`) que el resto del
+  portal.
+
+Especificación completa en
+[spec CD-33](../../specs/CD-33-educacion-municipal.md).
+
+Queda fuera de R24, explícitamente diferido (ver ADR 0028, Pendiente de
+definir): motivo del cierre, quién hizo cada cambio de estado (más allá
+de la marca de tiempo), edición de los campos del alta después de
+creada la institución, cupos/vacantes e inscripción a una institución,
+un caso real de municipio con escuela primaria/secundaria propia, rate
+limiting, y Salud municipal/Discapacidad como fases/rebanadas futuras.
 
 ## Epic: Fase 6 — Áreas de imagen y control de gestión
 
