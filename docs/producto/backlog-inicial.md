@@ -40,6 +40,7 @@ diseñe cada fase.
 | CD-29 | R20 · El municipio registra un árbol urbano y cualquiera ve su estado sanitario (parent: CD-5) |
 | CD-30 | R21 · Un vecino se inscribe a un programa social y el municipio evalúa su solicitud, sin exponerla públicamente (parent: CD-6) |
 | CD-31 (placeholder, sin confirmar) | R22 · Un vecino reserva un turno para una actividad municipal con cupo limitado, y el municipio administra la agenda (parent: CD-7, sin confirmar) |
+| CD-32 (placeholder, sin confirmar) | R23 · El municipio publica una gacetilla de prensa y cualquiera la encuentra (parent: CD-7, sin confirmar) |
 
 > Nota: R20 y R21 se implementaron con las ramas `CD-28-...`/`CD-29-...`
 > como placeholders, elegidos antes de saber el número real de ticket
@@ -58,6 +59,13 @@ diseñe cada fase.
 > Fase 6 en Jira (viene de la tabla original, no reverificado acá). La
 > sesión principal tiene que cargar R22 en Jira y corregir esta fila con
 > los números reales, igual que ya corrigió R20/R21.
+>
+> Nota: R23 se planificó (rama `CD-32-...`, spec
+> `specs/CD-32-...md`) sin acceso al MCP de Jira desde este worktree —
+> misma limitación conocida que R20/R21/R22. `CD-32` es un placeholder
+> elegido por continuidad numérica (siguiente a CD-31), no confirmado
+> contra Jira. La sesión principal tiene que cargar R23 en Jira y
+> corregir esta fila con los números reales.
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -1470,6 +1478,74 @@ sobre su propia reserva, cobro de arancel (integración con `pagos`),
 notificaciones, turnos de salud municipal o de atención
 administrativa/tránsito, y Auditoría interna/Control de gestión (sigue
 disponible como candidata de una rebanada futura de esta misma fase).
+
+### R23 · El municipio publica una gacetilla de prensa y cualquiera la encuentra
+
+**Demo**: un agente municipal (con sesión y `prensa.publicar` — sin
+necesitar ser administrador) publica una gacetilla, "Se inaugura la nueva
+plaza del barrio Centro" (categoría Obras), con fecha de publicación de
+hoy y el texto completo del comunicado. Un vecino, sin sesión, entra al
+portal público, filtra por categoría "Obras" y busca por texto en el
+título, y encuentra esa gacetilla. La misma gacetilla no aparece en el
+portal de otro municipio.
+
+Segunda rebanada de Fase 6 — Áreas de imagen y control de gestión. Elegida
+por descarte razonado sobre Auditoría interna/Control de gestión,
+reevaluada y descartada por segunda vez consecutiva: ningún módulo
+funcional del proyecto publica un evento de dominio propio más allá de
+`UsuarioCreado` (`acceso`, R5), así que un tablero cruzado seguiría
+necesitando tocar los módulos existentes o diseñar a las apuradas el
+framework de reportes/BI pendiente desde Fase 0 — ver
+[ADR 0027](../arquitectura/decisiones/0027-prensa-y-comunicacion-gacetillas-segunda-rebanada-de-fase-6.md),
+Contexto. Acotada a gacetillas (comunicados de prensa): "gestión de
+redes" (publicación en redes sociales externas), que el catálogo
+funcional también nombra bajo Prensa y Comunicación, queda fuera por ser
+una integración con terceros sin ningún patrón previo en el proyecto.
+
+Requiere [ADR 0027](../arquitectura/decisiones/0027-prensa-y-comunicacion-gacetillas-segunda-rebanada-de-fase-6.md):
+decide un módulo nuevo `prensa` con una sola entidad, `GacetillaEntity`,
+en forma deliberadamente igual al patrón ya usado por Boletín Oficial
+(R7): alta protegida por sesión y permiso, lectura pública sin sesión, sin
+estado ni edición posterior. La única decisión de permisos que se aparta
+del precedente de Boletín: `prensa.publicar` se asigna a `administrador`
+**y** `agente` (a diferencia de `boletin.publicar`, solo `administrador`),
+porque una gacetilla no es un acto legal del municipio como una
+ordenanza — es una comunicación operativa del mismo nivel que gestionar
+un reclamo o dar de alta una franja de turnos.
+
+Incluye:
+- Módulo `prensa`, contratable, sin depender de ningún otro módulo
+  funcional. `GacetillaEntity`: alta (`POST /api/prensa`) requiere sesión
+  y `prensa.publicar` (administrador y agente); listado (`GET /api/prensa`,
+  filtros `categoria`/`q` sobre el título) es público.
+- Campos: `categoria` (enum cerrado: `INSTITUCIONAL`, `OBRAS`, `CULTURA`,
+  `DEPORTES`, `SALUD`, `SEGURIDAD`, `OTRAS`), `titulo`, `texto`,
+  `fechaPublicacion`, `publicadoPorNombre`/`publicadoPorEmail` (copia del
+  actor autenticado al publicar, mismo criterio que `NormaEntity`/
+  `RegistroAuditoriaEntity`). Sin `numero`: a diferencia de una norma, una
+  gacetilla no tiene numeración legal que modelar. Sin edición ni
+  derogación de una gacetilla ya publicada.
+- Sin adjuntos/imágenes, sin integración con redes sociales externas, sin
+  notificaciones a suscriptores: fuera de alcance a propósito (ver
+  ADR 0027).
+- **Test de aislamiento**: una gacetilla publicada en un municipio no
+  aparece en el listado de otro.
+- Pantalla pública de búsqueda/listado (accesible, sin cuenta) con la
+  acción de publicar visible solo para quien tiene `prensa.publicar`,
+  mismas convenciones de foco y anuncios que el resto del portal (mismo
+  patrón de UI que `boletin`, R7: una única vista, no dos pantallas
+  separadas por permiso).
+
+Especificación completa en
+[spec CD-32](../../specs/CD-32-prensa-gacetillas.md).
+
+Queda fuera de R23, explícitamente diferido (ver ADR 0027, Pendiente de
+definir): adjuntar imagen/documento a una gacetilla (depende de una
+decisión de storage que el proyecto no tomó), integración con redes
+sociales externas, edición/derogación de una gacetilla ya publicada,
+notificación de contenido nuevo a suscriptores, y Auditoría interna/
+Control de gestión y el framework de reportes/BI que necesitaría (siguen
+pendientes, candidatos de una rebanada futura de esta misma fase).
 
 ## Epic: Fase 7 — Inteligencia artificial
 

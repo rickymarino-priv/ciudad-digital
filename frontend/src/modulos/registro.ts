@@ -8,6 +8,7 @@ import { PantallaDeEjemplo } from './ejemplo/PantallaDeEjemplo'
 import { PantallaDeMesaDeEntradas } from './mesaentradas/PantallaDeMesaDeEntradas'
 import { PantallaDeMultas } from './multas/PantallaDeMultas'
 import { PantallaDeObras } from './obras/PantallaDeObras'
+import { PantallaDePrensa } from './prensa/PantallaDePrensa'
 import { PantallaDeProveedores } from './proveedores/PantallaDeProveedores'
 import { PantallaDeReclamos } from './reclamos/PantallaDeReclamos'
 import { PantallaDeTasas } from './tasas/PantallaDeTasas'
@@ -46,4 +47,5 @@ export const registroDePantallasDeModulo: Record<string, ComponentType<PropsDePa
   arbolado: PantallaDeArbolado,
   desarrollosocial: PantallaDeDesarrolloSocial,
   turnos: PantallaDeTurnos,
+  prensa: PantallaDePrensa,
 }
