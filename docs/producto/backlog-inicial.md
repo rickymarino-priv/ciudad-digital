@@ -42,6 +42,7 @@ diseñe cada fase.
 | CD-31 (placeholder, sin confirmar) | R22 · Un vecino reserva un turno para una actividad municipal con cupo limitado, y el municipio administra la agenda (parent: CD-7, sin confirmar) |
 | CD-32 (placeholder, sin confirmar) | R23 · El municipio publica una gacetilla de prensa y cualquiera la encuentra (parent: CD-7, sin confirmar) |
 | CD-33 (placeholder, sin confirmar) | R24 · El municipio registra una institución educativa municipal y cualquiera ve su estado (parent: CD-6, sin confirmar) |
+| CD-34 (placeholder, sin confirmar) | R25 · El municipio registra un espacio verde y cualquiera ve su estado (parent: CD-5, sin confirmar) |
 
 > Nota: R20 y R21 se implementaron con las ramas `CD-28-...`/`CD-29-...`
 > como placeholders, elegidos antes de saber el número real de ticket
@@ -76,6 +77,15 @@ diseñe cada fase.
 > Epic de Fase 5 en Jira (viene de la tabla original, no reverificado
 > acá). La sesión principal tiene que cargar R24 en Jira y corregir esta
 > fila con los números reales.
+>
+> Nota: R25 se planificó (rama `CD-34-...`, spec
+> `specs/CD-34-...md`) sin acceso al MCP de Jira desde este worktree —
+> misma limitación conocida que R20/R21/R22/R23/R24. `CD-34` es un
+> placeholder elegido por continuidad numérica (siguiente a CD-33), no
+> confirmado contra Jira; tampoco se reverificó que `CD-5` sea realmente
+> el Epic de Fase 4 en Jira (viene de la tabla original). La sesión
+> principal tiene que cargar R25 en Jira y corregir esta fila con los
+> números reales.
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -1275,6 +1285,96 @@ de estado (más allá de la marca de tiempo), edición de los campos del
 alta después de creado el registro, geolocalización estructurada/GIS
 como servicio, adjuntos/fotos, y las demás áreas de Ambiente y Servicios
 Públicos (recolección de residuos, alumbrado público, espacios verdes).
+
+### R25 · El municipio registra un espacio verde y cualquiera ve su estado
+
+**Demo**: un agente municipal (con sesión y permiso
+`espaciosverdes.gestionar`) registra un espacio verde nuevo: nombre, tipo
+(plaza/parque/paseo/otra), ubicación, superficie en m² (opcional),
+descripción (opcional). Queda creado en estado "Disponible". Un vecino,
+sin sesión, entra al portal público, filtra por estado y por tipo, busca
+por texto (nombre o ubicación), y encuentra ese espacio verde listado con
+su estado actual. El mismo agente actualiza el estado a "En
+mantenimiento"; al volver a consultar, el vecino ve el estado
+actualizado. El mismo espacio verde no aparece en el portal de otro
+municipio.
+
+Tercera rebanada de Fase 4, dentro de Ambiente y Servicios Públicos —área
+que R20 (ADR 0024) había dejado "espacios verdes" explícitamente como
+"candidata futura si hace falta una rebanada chica", descartada en su
+momento no por inviable sino por ser, en forma, casi el mismo ejercicio
+que Obras Públicas. Elegida ahora para cerrar la fase (ver
+[ADR 0029](../arquitectura/decisiones/0029-espacios-verdes-padron-publico-con-estado-propio-tercera-rebanada-de-fase-4.md),
+Contexto): recolección de residuos y alumbrado público siguen dependiendo
+de datos reales de un municipio piloto (zonas/contrato real, inventario
+de infraestructura eléctrica real), sin cambios desde R20. A diferencia de
+cuando se descartó, esta rebanada suma un campo de magnitud numérica
+(`superficie`, en m²) que ninguna de las otras tres instancias del patrón
+tiene, y una tabla de transiciones de estado con forma propia — no es una
+repetición vacía de Obras/Arbolado/Educación, aunque comparta el mismo
+mecanismo general de alta protegida + lectura pública + estado mutable.
+
+Requiere [ADR 0029](../arquitectura/decisiones/0029-espacios-verdes-padron-publico-con-estado-propio-tercera-rebanada-de-fase-4.md):
+decide, siguiendo el mismo mecanismo de alta protegida + lectura pública
+de ADR 0023/0024/0028, un enum cerrado de `tipo` (`PLAZA, PARQUE, PASEO,
+OTRA`, chico y estable, a diferencia del texto libre de `especie` en
+Arbolado), un campo `superficie` opcional en m² (primera columna numérica
+del patrón), un ciclo de estado propio de tres valores (`DISPONIBLE,
+EN_MANTENIMIENTO, CERRADO`) con tabla de transiciones codificada en el
+servicio; que un único permiso `espaciosverdes.gestionar` cubre alta y
+actualización de estado, asignado a ambos roles de sistema; y que, con
+`espaciosverdes` como cuarto caso real del patrón "alta protegida +
+lectura pública + estado propio mutable" — y el primero que coincide
+exactamente en la forma de su tabla de transiciones con otro caso
+existente (Educación, ADR 0028) —, sigue sin convenir extraer ninguna
+abstracción común: el código realmente duplicado es trivial (una
+comprobación de una línea) y la coincidencia es de forma, no de
+contenido.
+
+Incluye:
+- Módulo `espaciosverdes`, contratable, sin depender de ningún otro
+  módulo funcional (tampoco de `obras`, `arbolado` ni `educacion`).
+  Registrar (`POST /api/espaciosverdes`) y actualizar estado (`PATCH
+  /api/espaciosverdes/{id}/estado`) requieren sesión y el permiso
+  `espaciosverdes.gestionar`, asignado a **ambos** roles de sistema
+  (`administrador` y `agente`). Listar (`GET /api/espaciosverdes`, con
+  filtros opcionales combinables por `estado`, `tipo` y texto en nombre/
+  ubicación) es público, sin sesión, sin identificador obligatorio.
+- Datos del alta: nombre, tipo (enum fijo: plaza, parque, paseo, otra),
+  ubicación (texto libre, sin geolocalización estructurada ni GIS),
+  superficie en m² opcional (única columna numérica del alta), descripción
+  opcional. Una vez registrado, estos campos no se editan por esta
+  rebanada; solo el estado cambia.
+- Estado: enum fijo `DISPONIBLE, EN_MANTENIMIENTO, CERRADO` con tabla de
+  transiciones (`DISPONIBLE → EN_MANTENIMIENTO`, `EN_MANTENIMIENTO →
+  DISPONIBLE`, `EN_MANTENIMIENTO → CERRADO`), sin entidad de historial ni
+  motor de workflow. Un espacio disponible no pasa directo a cerrado:
+  siempre queda un estado intermedio que documenta que hubo un motivo
+  antes del cierre.
+- Sin motivo del cierre como campo propio, sin inventario de equipamiento
+  (juegos, luminarias, bancos, riego), sin geolocalización estructurada ni
+  GIS, sin adjuntos/fotos: fuera de alcance a propósito (ver ADR 0029).
+- **Test de aislamiento**: un espacio verde registrado en un municipio no
+  es visible en el listado ni actualizable desde otro.
+- Pantalla pública de búsqueda/listado con filtros (accesible, sin
+  cuenta), con las acciones de registrar y de cambiar estado visibles
+  solo para quien tiene `espaciosverdes.gestionar`, mismas convenciones de
+  foco y anuncios (`role="status"`/`role="alert"`) que el resto del
+  portal.
+
+Especificación completa en [spec CD-34](../../specs/CD-34-espacios-verdes.md).
+
+Queda fuera de R25, explícitamente diferido (ver ADR 0029, Pendiente de
+definir): motivo del cierre o del pase a mantenimiento, quién hizo cada
+cambio de estado (más allá de la marca de tiempo), edición de los campos
+del alta después de creado el registro, inventario de equipamiento del
+espacio verde, geolocalización estructurada/GIS como servicio,
+adjuntos/fotos, y las áreas de Ambiente y Servicios Públicos que siguen
+sin rebanada propia (recolección de residuos, alumbrado público). Con
+Obras Públicas (R19), Arbolado urbano (R20) y Espacios verdes (R25), Fase
+4 — Gestión territorial queda con tres rebanadas demostrables; Catastro,
+Planeamiento Urbano/Uso del Suelo y GIS como servicio consolidado siguen
+diferidos sin rebanada propia todavía.
 
 ## Epic: Fase 5 — Áreas sociales
 
