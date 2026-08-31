@@ -39,6 +39,7 @@ diseñe cada fase.
 | CD-27 | R19 · El municipio registra una obra pública en curso y cualquiera ve su estado de avance (parent: CD-5) |
 | CD-29 | R20 · El municipio registra un árbol urbano y cualquiera ve su estado sanitario (parent: CD-5) |
 | CD-30 | R21 · Un vecino se inscribe a un programa social y el municipio evalúa su solicitud, sin exponerla públicamente (parent: CD-6) |
+| CD-31 (placeholder, sin confirmar) | R22 · Un vecino reserva un turno para una actividad municipal con cupo limitado, y el municipio administra la agenda (parent: CD-7, sin confirmar) |
 
 > Nota: R20 y R21 se implementaron con las ramas `CD-28-...`/`CD-29-...`
 > como placeholders, elegidos antes de saber el número real de ticket
@@ -48,6 +49,15 @@ diseñe cada fase.
 > aparecen en el nombre de rama o en el nombre de archivo de sus specs.
 > `CD-28` quedó como un Epic duplicado de CD-6, creado por error y
 > cerrado sin uso — no lo uses como referencia.
+>
+> Nota: R22 se implementó (rama `CD-31-...`, spec
+> `specs/CD-31-...md`) sin acceso al MCP de Jira desde este worktree —
+> misma limitación conocida que R20/R21. `CD-31` es un placeholder
+> elegido por continuidad numérica (siguiente a CD-30), no confirmado
+> contra Jira; tampoco se confirmó que `CD-7` sea realmente el Epic de
+> Fase 6 en Jira (viene de la tabla original, no reverificado acá). La
+> sesión principal tiene que cargar R22 en Jira y corregir esta fila con
+> los números reales, igual que ya corrigió R20/R21.
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -1354,10 +1364,112 @@ notificación al vecino de un cambio de estado, rate limiting, política de
 retención de datos, y edición de los campos del alta después de creado
 el registro.
 
-## Epic: Fase 6 — Áreas de imagen / periféricas
+Fase 5 queda en una sola rebanada por ahora (mismo patrón que Fase 3):
+R22 elige otra fase en vez de una segunda rebanada acá — ver
+[ADR 0026](../arquitectura/decisiones/0026-turnos-actividades-municipales-reserva-con-cupo-primera-rebanada-de-fase-6.md),
+Contexto. Educación municipal sigue disponible como candidata futura de
+Fase 5; Salud municipal y Discapacidad siguen diferidas sin cambios.
+
+## Epic: Fase 6 — Áreas de imagen y control de gestión
 
 Cultura/Turismo/Deportes, Prensa y Comunicación, Auditoría interna y
 control de gestión.
+
+### R22 · Un vecino reserva un turno para una actividad municipal con cupo limitado, y el municipio administra la agenda
+
+**Demo**: un agente municipal (con sesión y `turnos.gestionar`) publica
+una actividad, "Cancha de Fútbol 5 — Polideportivo Municipal" (tipo
+Deporte), en estado "Activa", y le agrega una franja horaria: sábado
+10:00 a 11:00, cupo 2. Un vecino, sin sesión, ve la actividad y esa
+franja en el catálogo público con "2 lugares disponibles", y reserva un
+turno con su nombre, DNI y contacto. El cupo baja a 1. Un segundo vecino
+reserva el último lugar: el cupo baja a 0 y la franja deja de aceptar
+reservas — un tercer vecino que lo intenta recibe un error de "cupo
+agotado", no una reserva fantasma. El mismo agente entra a la agenda y ve
+las dos reservas con los datos completos de cada vecino; no existe
+ningún listado público de quién se anotó. Las actividades, franjas y
+reservas de un municipio no aparecen en el portal de otro.
+
+Primera rebanada de Fase 6 — Áreas de imagen y control de gestión.
+Elegida por descarte razonado sobre Educación municipal (segunda
+rebanada posible de Fase 5, mismo catálogo público con estado propio que
+ya demostraron Obras/Arbolado/Desarrollo Social, sin aportar una
+dimensión de dominio nueva) y sobre Auditoría interna/Control de gestión
+(un tablero cruzado necesitaría tocar los siete módulos funcionales ya
+construidos o diseñar a las apuradas el framework de reportes/BI
+pendiente desde Fase 0) — ver
+[ADR 0026](../arquitectura/decisiones/0026-turnos-actividades-municipales-reserva-con-cupo-primera-rebanada-de-fase-6.md),
+Contexto. Acotada a actividades recreativas (deporte/cultura/turismo):
+sin dato de salud, sin trámite administrativo — turnos de salud
+municipal o de atención en tránsito quedan fuera de esta rebanada por
+los mismos motivos que ADR 0025 ya dio para Discapacidad.
+
+Requiere [ADR 0026](../arquitectura/decisiones/0026-turnos-actividades-municipales-reserva-con-cupo-primera-rebanada-de-fase-6.md):
+decide un módulo nuevo `turnos` con tres entidades — un catálogo de
+actividades (alta protegida, lectura pública, mismo mecanismo que
+Obras/Arbolado/Desarrollo Social), franjas horarias con cupo bajo cada
+actividad, y las reservas de los vecinos sobre esas franjas (alta pública
+anónima, mismo criterio que Reclamos/Desarrollo Social). La decisión
+central de la ADR es cómo decrementar el cupo de una franja sin que dos
+reservas públicas concurrentes puedan sobrevenderla: un `UPDATE`
+condicional atómico (`cupo_disponible = cupo_disponible - 1 where
+cupo_disponible > 0`) en una sola sentencia, no una lectura seguida de una
+escritura. Primer módulo del proyecto con esta propiedad de corrección
+bajo concurrencia, y primer uso de 409 Conflict como código de error de
+negocio (cupo agotado, reserva duplicada del mismo DNI en la misma
+franja).
+
+Incluye:
+- Módulo `turnos`, contratable, sin depender de ningún otro módulo
+  funcional. `ActividadEntity`: alta (`POST /api/turnos/actividades`) y
+  cambio de estado (`PATCH .../actividades/{id}/estado`, `ACTIVA ↔
+  INACTIVA`) requieren sesión y `turnos.gestionar` (administrador y
+  agente); listado (`GET /api/turnos/actividades`, filtros
+  `tipo`/`estado`/`q`) es público.
+- `FranjaHorariaEntity`: alta (`POST
+  /api/turnos/actividades/{id}/franjas`) protegida, con `fecha`,
+  `horaInicio`, `horaFin` y `cupoTotal`; `cupoDisponible` se inicializa
+  en `cupoTotal` y de ahí en más solo lo modifica el mecanismo de
+  reserva. Sin edición de una franja ya creada. Listado (`GET
+  /api/turnos/franjas?actividadId=...`) es público y muestra
+  `cupoDisponible`, nunca quién reservó.
+- `TurnoEntity`: alta (`POST /api/turnos/reservas`) pública y anónima,
+  contra una franja existente cuya actividad esté `ACTIVA` y con cupo
+  disponible; nombre, DNI, contacto (obligatorio). Decremento atómico del
+  cupo a nivel de base de datos (ADR 0026 §4): `CupoAgotado` (409) si no
+  queda lugar, `ReservaDuplicada` (409) si ese DNI ya reservó esa franja.
+  Sin lectura pública de reservas — mismo criterio de minimización que
+  Desarrollo Social (ADR 0025 §6), aunque el dato acá no es sensible.
+- Agenda de gestión (`GET /api/turnos/reservas?franjaId=...`), mismo
+  permiso `turnos.gestionar` (sin separar por sensibilidad: el dato de
+  `TurnoEntity` es del mismo nivel que Mesa de Entradas/Reclamos, no el
+  de Desarrollo Social).
+- Sin cobro/pagos, sin cancelación de reservas ni de franjas, sin
+  notificaciones, sin seguimiento por token: fuera de alcance a propósito
+  (ver ADR 0026).
+- **Test de aislamiento**: una actividad, franja o reserva de un
+  municipio no es visible ni gestionable desde otro.
+- **Test de concurrencia**: con cupo 2 en una franja, cinco reservas
+  simultáneas para DNIs distintos (lanzadas con `ExecutorService`,
+  armadas antes de dispararse) terminan en exactamente dos reservas
+  exitosas y tres `CupoAgotado`, nunca más reservas exitosas que cupo
+  disponible.
+- Pantalla pública de catálogo de actividades con sus franjas y cupo
+  disponible (accesible, sin cuenta), formulario de reserva, y una
+  agenda de gestión visible solo para quien tiene `turnos.gestionar`,
+  mismas convenciones de foco y anuncios (`role="status"`/`role="alert"`)
+  que el resto del portal.
+
+Especificación completa en
+[spec CD-31](../../specs/CD-31-turnos-actividades-municipales.md).
+
+Queda fuera de R22, explícitamente diferido (ver ADR 0026, Pendiente de
+definir): cancelación de reservas o de franjas con liberación de cupo,
+edición de una franja ya publicada, seguimiento por token del vecino
+sobre su propia reserva, cobro de arancel (integración con `pagos`),
+notificaciones, turnos de salud municipal o de atención
+administrativa/tránsito, y Auditoría interna/Control de gestión (sigue
+disponible como candidata de una rebanada futura de esta misma fase).
 
 ## Epic: Fase 7 — Inteligencia artificial
 
