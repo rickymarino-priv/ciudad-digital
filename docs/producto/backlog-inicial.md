@@ -38,6 +38,7 @@ diseñe cada fase.
 | CD-26 | R18 · El municipio ve su contrato y sus módulos, y pide un alta o baja (parent: CD-4) |
 | CD-27 | R19 · El municipio registra una obra pública en curso y cualquiera ve su estado de avance (parent: CD-5) |
 | CD-28 | R20 · El municipio registra un árbol urbano y cualquiera ve su estado sanitario (parent: CD-5) |
+| CD-29 | R21 · Un vecino se inscribe a un programa social y el municipio evalúa su solicitud, sin exponerla públicamente (parent: CD-6) |
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
@@ -1241,6 +1242,108 @@ Públicos (recolección de residuos, alumbrado público, espacios verdes).
 ## Epic: Fase 5 — Áreas sociales
 
 Desarrollo Social, Discapacidad, Salud municipal, Educación municipal.
+
+### R21 · Un vecino se inscribe a un programa social y el municipio evalúa su solicitud, sin exponerla públicamente
+
+**Demo**: un administrador (con sesión y
+`desarrollosocial.gestionarProgramas`) publica un programa social,
+"Refuerzo alimentario municipal", en estado "Abierto". Un vecino, sin
+sesión, ve el programa en el catálogo público y se inscribe: nombre,
+DNI, contacto, cantidad de integrantes del grupo familiar, situación
+declarada ("Empleo informal"), sin subir ningún comprobante. Recibe un
+código de seguimiento y, con él, consulta después el estado de su
+inscripción sin sesión ("Recibida"). El mismo administrador (con
+`desarrollosocial.revisarInscripciones`) entra a la bandeja de
+inscripciones, ve los datos completos, la pasa a "En evaluación" y
+después a "Aprobada" con un comentario. El vecino, al volver a
+consultar, ve el nuevo estado y el comentario, pero no existe ningún
+listado público de inscripciones — nadie más puede ver la suya. La misma
+inscripción no aparece en el portal de otro municipio.
+
+Primera rebanada de Fase 5 — Áreas sociales. Elegida por descarte
+razonado, mismo criterio que ADR 0021/ADR 0023/ADR 0024 ya aplicaron al
+abrir Fase 3 y Fase 4, sumado a un criterio nuevo que pesa igual en esta
+fase: minimización de datos personales sensibles (ver
+[ADR 0025](../arquitectura/decisiones/0025-desarrollo-social-inscripcion-a-programa-social-con-minimizacion-de-datos-sensibles.md),
+Contexto). Salud municipal queda diferida como fase completa: un
+historial clínico no tiene una forma de minimizarse que no lo vacíe de
+sentido, y el producto no tiene todavía ni un municipio piloto real ni
+una política de datos de salud. Discapacidad queda diferida para esta
+rebanada (no descartada por inviable): un turno para la Junta Evaluadora
+de CUD es, en sí mismo, un dato de salud vinculado a la identidad de
+quien lo pide, sin una versión "en categorías amplias" que deje de serlo.
+Educación municipal es viable sin dato personal pero no aporta una
+dimensión de dominio nueva frente a Obras/Arbolado (mismo catálogo
+nombre/ubicación/tipo/estado). Desarrollo Social se acota a una
+inscripción/preinscripción con elegibilidad declarada en categorías
+amplias — nunca un padrón de beneficiarios consultable, nunca
+comprobantes de ingresos ni datos de salud.
+
+Requiere [ADR 0025](../arquitectura/decisiones/0025-desarrollo-social-inscripcion-a-programa-social-con-minimizacion-de-datos-sensibles.md):
+decide un módulo nuevo `desarrollosocial` con dos entidades — un
+catálogo de programas sociales (alta protegida, lectura pública, mismo
+mecanismo que Obras/Arbolado) y las inscripciones a esos programas (alta
+pública anónima, mismo criterio que Reclamos, con seguimiento por token
+reutilizando `seguimientoanonimo` de ADR 0017). A diferencia de todo
+módulo anterior con estado propio, las inscripciones **no** tienen
+ningún endpoint de lectura pública ni por listado ni por identificador
+obligatorio: la única lectura sin sesión es por posesión del token
+propio. El permiso de revisión (`desarrollosocial.revisarInscripciones`)
+queda reservado solo a `administrador` — es el primer módulo del
+proyecto en el que un permiso de gestión operativa no se asigna también
+a `agente` en el seed de sistema, porque el dato detrás es más sensible
+que el de cualquier módulo anterior.
+
+Incluye:
+- Módulo `desarrollosocial`, contratable, sin depender de ningún otro
+  módulo funcional. `ProgramaSocialEntity`: alta (`POST
+  /api/desarrollosocial/programas`) y cambio de estado
+  (`PATCH .../programas/{id}/estado`, `ABIERTO ↔ CERRADO`) requieren
+  sesión y `desarrollosocial.gestionarProgramas` (administrador y
+  agente); listado (`GET /api/desarrollosocial/programas`, filtros
+  `estado`/`q`) es público.
+- `InscripcionSocialEntity`: alta (`POST
+  /api/desarrollosocial/inscripciones`) pública y anónima, contra un
+  programa `ABIERTO` existente; devuelve solo `id`, `estado` y un token
+  de seguimiento (nunca se reexpone el resto). Datos del alta: nombre,
+  DNI, contacto (obligatorio), cantidad de integrantes del grupo
+  familiar (un entero, nunca nombres/edades de terceros), situación
+  declarada (enum de cinco categorías amplias, nunca un monto de
+  ingreso ni un comprobante), comentario adicional opcional.
+- Seguimiento público por token (`GET
+  /api/desarrollosocial/inscripciones/seguimiento/{token}`): devuelve
+  programa, estado y comentario de resolución si existe — nunca los
+  datos personales que el vecino ya escribió.
+- Bandeja de gestión (`GET /api/desarrollosocial/inscripciones`,
+  `PATCH .../inscripciones/{id}/estado`), reservada a
+  `desarrollosocial.revisarInscripciones` (solo administrador): estado
+  `RECIBIDA → EN_EVALUACION → APROBADA | RECHAZADA`, con comentario
+  obligatorio al aprobar o rechazar. Sin este permiso —incluso con
+  `gestionarProgramas`— no hay acceso a ningún dato personal de las
+  inscripciones.
+- Sin padrón de beneficiarios consultable, sin adjuntos/comprobantes,
+  sin cruce con Nación/Provincia, sin geolocalización: fuera de alcance
+  a propósito (ver ADR 0025).
+- **Test de aislamiento**: un programa y una inscripción de un municipio
+  no son visibles ni gestionables desde otro, incluido el seguimiento
+  por token.
+- Pantalla pública de catálogo (accesible, sin cuenta) con inscripción y
+  seguimiento por token, y una bandeja de gestión de inscripciones
+  visible solo para quien tiene `desarrollosocial.revisarInscripciones`,
+  mismas convenciones de foco y anuncios (`role="status"`/`role="alert"`)
+  que el resto del portal.
+
+Especificación completa en
+[spec CD-29](../../specs/CD-29-desarrollo-social-programas-e-inscripciones.md).
+
+Queda fuera de R21, explícitamente diferido (ver ADR 0025, Pendiente de
+definir): Salud municipal y Discapacidad como fases/rebanadas futuras
+(dependen de un mecanismo de datos sensibles más maduro y de un
+municipio piloto real), un rol de sistema dedicado para Desarrollo
+Social distinto de `administrador`, cruces de datos con Nación/Provincia,
+notificación al vecino de un cambio de estado, rate limiting, política de
+retención de datos, y edición de los campos del alta después de creado
+el registro.
 
 ## Epic: Fase 6 — Áreas de imagen / periféricas
 

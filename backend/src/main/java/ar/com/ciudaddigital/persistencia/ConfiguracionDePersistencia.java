@@ -137,6 +137,9 @@ class ConfiguracionDePersistencia {
     /** Árboles urbanos registrados por el municipio (R20, ADR 0024). */
     static final String PAQUETE_ARBOLADO = "ar.com.ciudaddigital.arbolado";
 
+    /** Programas sociales e inscripciones del municipio (R21, ADR 0025). */
+    static final String PAQUETE_DESARROLLOSOCIAL = "ar.com.ciudaddigital.desarrollosocial";
+
     /**
      * Entidad de Spring Modulith que registra las publicaciones de eventos
      * (tabla {@code event_publication}). Vive en la base de tenant, no en
@@ -166,7 +169,8 @@ class ConfiguracionDePersistencia {
             basePackages = {
                     PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS, PAQUETE_BOLETIN,
                     PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS,
-                    PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_ARBOLADO },
+                    PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_ARBOLADO,
+                    PAQUETE_DESARROLLOSOCIAL },
             entityManagerFactoryRef = "tenantEntityManagerFactory",
             transactionManagerRef = "tenantTransactionManager")
     static class RepositoriosDeTenant {
@@ -241,7 +245,8 @@ class ConfiguracionDePersistencia {
         emf.setPackagesToScan(
                 PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS, PAQUETE_BOLETIN,
                 PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS,
-                PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_ARBOLADO, PAQUETE_EVENTOS);
+                PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_ARBOLADO, PAQUETE_DESARROLLOSOCIAL,
+                PAQUETE_EVENTOS);
         emf.setPersistenceUnitName("tenant");
         emf.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         emf.setJpaPropertyMap(propiedadesDeTenant());
