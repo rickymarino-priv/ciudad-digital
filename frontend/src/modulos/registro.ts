@@ -12,6 +12,7 @@ import { PantallaDeProveedores } from './proveedores/PantallaDeProveedores'
 import { PantallaDeReclamos } from './reclamos/PantallaDeReclamos'
 import { PantallaDeTasas } from './tasas/PantallaDeTasas'
 import { PantallaDeTransparencia } from './transparencia/PantallaDeTransparencia'
+import { PantallaDeTurnos } from './turnos/PantallaDeTurnos'
 import type { Modulo } from './useModulos'
 import type { Usuario } from '../acceso/useSesion'
 
@@ -44,4 +45,5 @@ export const registroDePantallasDeModulo: Record<string, ComponentType<PropsDePa
   obras: PantallaDeObras,
   arbolado: PantallaDeArbolado,
   desarrollosocial: PantallaDeDesarrolloSocial,
+  turnos: PantallaDeTurnos,
 }
