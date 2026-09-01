@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 
 import { PantallaDeArbolado } from './arbolado/PantallaDeArbolado'
 import { PantallaDeBoletin } from './boletin/PantallaDeBoletin'
+import { PantallaDeBromatologia } from './bromatologia/PantallaDeBromatologia'
 import { PantallaDeCementerio } from './cementerio/PantallaDeCementerio'
 import { PantallaDeDefensaCivil } from './defensacivil/PantallaDeDefensaCivil'
 import { PantallaDeDesarrolloSocial } from './desarrollosocial/PantallaDeDesarrolloSocial'
@@ -56,4 +57,5 @@ export const registroDePantallasDeModulo: Record<string, ComponentType<PropsDePa
   prensa: PantallaDePrensa,
   educacion: PantallaDeEducacion,
   defensacivil: PantallaDeDefensaCivil,
+  bromatologia: PantallaDeBromatologia,
 }

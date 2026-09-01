@@ -158,6 +158,9 @@ class ConfiguracionDePersistencia {
     /** Alertas y recursos de Defensa Civil del municipio (R27, ADR 0031). */
     static final String PAQUETE_DEFENSACIVIL = "ar.com.ciudaddigital.defensacivil";
 
+    /** Padrón de comercios e historial de inspecciones de Bromatología del municipio (R28, ADR 0032). */
+    static final String PAQUETE_BROMATOLOGIA = "ar.com.ciudaddigital.bromatologia";
+
     /**
      * Entidad de Spring Modulith que registra las publicaciones de eventos
      * de dominio (tabla {@code event_publication}) — no confundir con
@@ -192,7 +195,7 @@ class ConfiguracionDePersistencia {
                     PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS,
                     PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_ARBOLADO,
                     PAQUETE_DESARROLLOSOCIAL, PAQUETE_TURNOS, PAQUETE_PRENSA, PAQUETE_EDUCACION,
-                    PAQUETE_ESPACIOSVERDES, PAQUETE_EVENTOS, PAQUETE_DEFENSACIVIL },
+                    PAQUETE_ESPACIOSVERDES, PAQUETE_EVENTOS, PAQUETE_DEFENSACIVIL, PAQUETE_BROMATOLOGIA },
             entityManagerFactoryRef = "tenantEntityManagerFactory",
             transactionManagerRef = "tenantTransactionManager")
     static class RepositoriosDeTenant {
@@ -269,7 +272,7 @@ class ConfiguracionDePersistencia {
                 PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS,
                 PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_ARBOLADO, PAQUETE_DESARROLLOSOCIAL,
                 PAQUETE_TURNOS, PAQUETE_PRENSA, PAQUETE_EDUCACION, PAQUETE_ESPACIOSVERDES, PAQUETE_EVENTOS,
-                PAQUETE_DEFENSACIVIL, PAQUETE_MODULITH_EVENTOS);
+                PAQUETE_DEFENSACIVIL, PAQUETE_BROMATOLOGIA, PAQUETE_MODULITH_EVENTOS);
         emf.setPersistenceUnitName("tenant");
         emf.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         emf.setJpaPropertyMap(propiedadesDeTenant());
