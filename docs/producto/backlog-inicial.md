@@ -1734,6 +1734,80 @@ notificación de contenido nuevo a suscriptores, y Auditoría interna/
 Control de gestión y el framework de reportes/BI que necesitaría (siguen
 pendientes, candidatos de una rebanada futura de esta misma fase).
 
+### R26 · El municipio publica un evento en la agenda cultural/turística/deportiva y lo puede cancelar
+
+**Demo**: un agente municipal (con sesión y `eventos.gestionar`) publica
+un evento, "Maratón Municipal" (categoría Deporte), ubicación
+"Costanera", del 15 al 15 de octubre, 9:00hs. Un vecino, sin sesión,
+entra al portal público y ve la agenda ordenada por fecha (lo que viene
+primero, arriba), filtra por categoría "Deporte" y por texto, y encuentra
+el evento. El mismo agente lo cancela (por mal tiempo); al volver a
+consultar, el vecino lo ve como "Cancelado" sin que desaparezca de la
+agenda. El mismo evento no aparece en el portal de otro municipio.
+
+Tercera y, por ahora, última rebanada construible de Fase 6 — Áreas de
+imagen y control de gestión. Elegida por descarte razonado sobre
+Auditoría interna/Control de gestión, reevaluada y descartada por tercera
+vez consecutiva: ningún módulo funcional agregado desde R23 (`educacion`,
+`espaciosverdes`) publica un evento de dominio propio, así que un tablero
+cruzado seguiría necesitando tocar los módulos existentes o diseñar a las
+apuradas el framework de reportes/BI pendiente desde Fase 0 — ver
+[ADR 0030](../arquitectura/decisiones/0030-agenda-de-eventos-cultura-turismo-y-deporte-tercera-rebanada-de-fase-6.md),
+Contexto. Cubre la parte de "Cultura, Turismo y Deportes" que Turnos (R22)
+no cubrió: el catálogo funcional lista "agenda de eventos, polideportivos,
+turnos deportivos" bajo esa área, y Turnos (ADR 0026) solo cubrió "turnos
+deportivos" (reserva de cupo). Un catálogo de puntos de interés turístico
+("polideportivos") queda fuera de esta rebanada, disponible como
+candidata futura chica de la misma área.
+
+Requiere [ADR 0030](../arquitectura/decisiones/0030-agenda-de-eventos-cultura-turismo-y-deporte-tercera-rebanada-de-fase-6.md),
+que además de decidir el módulo justifica por qué esto **no** es lo mismo
+que `turnos` con otro nombre: un evento es informativo (nadie se anota,
+sin cupo, sin dato personal de terceros), mientras que `turnos` modela un
+recurso reservable con cupo compartido bajo concurrencia. Decide también
+el nombre `eventos` (no `agenda`, para no colisionar conceptualmente con
+`GestionDeAgenda` de `turnos.internal`), una topología de estado nueva
+para el patrón del proyecto (`PROGRAMADO → CANCELADO`, un solo salto sin
+retorno — la más simple hasta ahora) y un orden de listado por
+`fechaInicio` ascendente en vez de por `creadoEn` descendente (primera
+desviación del criterio de orden por defecto del patrón, justificada
+porque es una agenda cronológica, no un padrón).
+
+Incluye:
+- Módulo `eventos`, contratable, sin depender de `turnos` ni de ningún
+  otro módulo funcional. `EventoEntity`: alta (`POST /api/eventos`)
+  requiere sesión y `eventos.gestionar` (administrador y agente); listado
+  (`GET /api/eventos`, filtros `categoria`/`estado`/`q`) es público,
+  ordenado por `fechaInicio` ascendente.
+- Campos: `categoria` (enum cerrado: `CULTURA`, `TURISMO`, `DEPORTE`,
+  `OTRA`, definido desde cero, sin reutilizar `TipoDeActividad` de
+  `turnos`), `nombre`, `ubicacion`, `descripcion` (opcional),
+  `fechaInicio` (obligatoria), `fechaFin` (opcional, tiene que ser ≥
+  `fechaInicio`), `horaInicio` (opcional), `publicadoPorNombre`/
+  `publicadoPorEmail` (copia del actor autenticado al publicar).
+- Cancelación (`PATCH /api/eventos/{id}/estado`, mismo permiso): única
+  transición válida `PROGRAMADO → CANCELADO`, sin retorno y sin estado
+  intermedio.
+- **Test de aislamiento**: un evento publicado en un municipio no
+  aparece ni es cancelable desde otro.
+- Pantalla pública de agenda (accesible, sin cuenta) con filtros
+  combinables, la acción de publicar visible solo con
+  `eventos.gestionar`, y un botón de cancelar por fila (sin selector de
+  destino, porque solo hay una transición posible) con confirmación
+  previa, mismas convenciones de foco y anuncios
+  (`role="status"`/`role="alert"`) que el resto del portal.
+
+Especificación completa en
+[spec CD-35](../../specs/CD-35-agenda-eventos-cultura-turismo-deporte.md).
+
+Queda fuera de R26, explícitamente diferido (ver ADR 0030, Pendiente de
+definir): catálogo de puntos de interés turístico, motivo de la
+cancelación, eventos recurrentes, edición de los campos del alta,
+integración con `turnos` para un evento puntual reservable, notificación
+al vecino de eventos nuevos o cancelados, y Auditoría interna/Control de
+gestión y el framework de reportes/BI que necesitaría (sin candidata
+nueva de Fase 6 disponible después de esta rebanada).
+
 ## Epic: Fase 7 — Inteligencia artificial
 
 Clasificador de reclamos (candidato a adelantarse a Fase 1), asistente
