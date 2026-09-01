@@ -45,6 +45,7 @@ diseñe cada fase.
 | CD-34 (placeholder, sin confirmar) | R25 · El municipio registra un espacio verde y cualquiera ve su estado (parent: CD-5, sin confirmar) |
 | CD-36 | Epic Sin fase fija — módulos sin prioridad de roadmap |
 | CD-37 | R27 · El municipio publica una alerta de Defensa Civil y registra sus recursos de emergencia, y cualquiera los consulta (parent: CD-36) |
+| CD-38 (placeholder, sin confirmar) | R28 · El municipio registra un comercio bromatológico y sus inspecciones, y cualquiera consulta el estado del padrón (parent: CD-36, sin confirmar) |
 
 > Nota: falta en esta tabla la fila de R26 (rama `CD-35-...`, spec
 > `specs/CD-35-agenda-eventos-cultura-turismo-deporte.md`), que quedó sin
@@ -1868,6 +1869,93 @@ una alerta finalizada, motivo de la finalización/inactivación, y cualquier
 integración con cámaras, sensores o hardware de monitoreo. Bromatología
 queda disponible como próxima candidata del mismo Epic sin fase fija
 (CD-36).
+
+### R28 · El municipio registra un comercio bromatológico y sus inspecciones, y cualquiera consulta el estado del padrón
+
+**Demo**: un agente municipal (con sesión y `bromatologia.gestionar`) da de
+alta un comercio: rubro "Verdulería", nombre "Verdulería Don José",
+dirección "San Martín 450", habilitado desde hoy, con vencimiento en un
+año. Queda "Habilitado" en el padrón. Un vecino, sin sesión, entra al
+portal público, filtra por rubro "Verdulería" y lo encuentra con su estado
+"Habilitado". El mismo agente registra una inspección sobre ese comercio
+con resultado "Observado" y una observación interna ("faltan matayuyos en
+la zona de depósito"). El padrón público pasa a mostrar el comercio como
+"Observado" (la observación no es visible ahí: solo se ve con sesión). El
+agente abre el historial de inspecciones del comercio (requiere sesión y
+permiso) y ve la inspección registrada con su fecha, resultado y
+observación. Ni el comercio ni sus inspecciones son visibles ni editables
+desde otro municipio.
+
+Segunda y última rebanada del Epic Sin fase fija (CD-36): agotados los dos
+candidatos que dejaba sin fase asignada el
+[roadmap](roadmap-fases.md#sin-fase-fija). [ADR 0031](../arquitectura/decisiones/0031-defensa-civil-alertas-publicas-y-recursos-primera-rebanada-sin-fase-fija.md)
+ya había descartado Bromatología como primera rebanada porque el circuito
+completo de una inspección real (acta, infracción, plazo de subsanación)
+necesita normativa específica de cada municipio/provincia sin un piloto
+real que la valide. Esta rebanada recorta ese alcance en vez de seguir
+postergándolo: construye el padrón con estado y un historial de
+inspecciones que **motiva** los cambios de estado, sin modelar acta,
+infracción ni expediente sancionatorio — ver
+[ADR 0032](../arquitectura/decisiones/0032-bromatologia-padron-de-comercios-e-historial-de-inspecciones-protegido-segunda-rebanada-sin-fase-fija.md),
+Contexto. Sin dato nominal de manipuladores de alimentos (sería un dato de
+salud de una persona identificable, mismo criterio de minimización que
+Salud municipal/Discapacidad, ADR 0025) y sin relación de esquema con
+`proveedores` (R14): son conceptos de dominio inversos, quien le vende al
+municipio contra a quien el municipio fiscaliza — ver ADR 0032, Contexto.
+
+Incluye:
+- Módulo `bromatologia`, contratable, con dos entidades **relacionadas**
+  por clave foránea (a diferencia de `defensacivil`):
+  `ComercioBromatologicoEntity` (padrón, público) e
+  `InspeccionBromatologicaEntity` (historial, protegido). Un único
+  permiso `bromatologia.gestionar` (administrador y agente) cubre alta de
+  comercio, alta de inspección y lectura del historial — no hay dato
+  personal identificable en ninguna de las dos entidades que justifique
+  separarlo (ADR 0032 §5).
+- Comercio: `rubro` (Verdulería, Carnicería, Panadería, Restaurante,
+  Almacén, Otro), `nombre`, `direccion` (texto libre, sin GIS),
+  `fechaHabilitacion`, `fechaVencimientoHabilitacion` (posterior a la
+  anterior). Nace siempre `HABILITADO`. **Sin `PATCH` directo de
+  estado**: la única vía de cambio es registrar una inspección.
+- Inspección: `fecha`, `resultado` (mismo enum que el estado del
+  comercio: Habilitado/Observado/Clausurado), `observaciones` (texto
+  libre, no pública). Al registrarse, actualiza en la misma transacción
+  el `estado` del comercio al valor de `resultado` — primer módulo del
+  proyecto donde el estado público de una entidad cambia como efecto de
+  un historial en vez de por un `PATCH` directo. No rechaza una
+  reinspección con el mismo resultado que el estado actual: es
+  información de historial válida, no una acción de cambio de estado.
+- `GET /api/bromatologia/comercios` es lectura pública (filtros
+  combinables `rubro`/`estado`/`q`); `POST` de comercio, `POST` y **`GET`**
+  de inspecciones requieren sesión y `bromatologia.gestionar` — primer
+  módulo del proyecto donde el historial detrás de un estado público no
+  tiene ninguna vía de lectura sin sesión (ADR 0032 §4).
+- **Test de aislamiento** (obligatorio, tres casos): un comercio de un
+  municipio no aparece en el padrón de otro; un `POST`/`GET` de
+  inspecciones sobre el id de un comercio ajeno da 404 sin revelar que
+  existe en otro tenant; una inspección de un municipio no aparece en
+  ningún listado de otro.
+- Pantalla pública con el padrón de comercios (filtros por rubro, estado
+  y texto), alta de comercio protegida, y por cada fila un panel
+  expandible (solo con el permiso) con el historial de inspecciones de
+  ese comercio y el formulario para registrar una inspección nueva,
+  mismas convenciones de foco y anuncios (`role="status"`/`role="alert"`,
+  `aria-expanded`) que el resto del portal.
+
+Especificación completa en
+[spec CD-38](../../specs/CD-38-bromatologia.md).
+
+Queda fuera de R28, explícitamente diferido (ver ADR 0032, Pendiente de
+definir): acta de infracción, tipificación por ordenanza, plazo de
+subsanación con reinspección obligatoria y expediente sancionatorio;
+renovación de habilitación y vencimiento automático por fecha (no hay
+infraestructura de jobs/cron en el proyecto); notificación al comercio de
+un resultado adverso o de un vencimiento próximo; libreta sanitaria de
+manipuladores; CUIT/titular del comercio y su eventual cruce con
+`proveedores`; geolocalización estructurada de `direccion`; edición de
+los campos del alta del comercio después de creado. Con esta rebanada
+queda agotado el Epic Sin fase fija (CD-36): no quedan más candidatos sin
+fase asignada en el roadmap actual.
 
 ## Epic: Fase 7 — Inteligencia artificial
 
