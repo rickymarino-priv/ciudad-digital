@@ -7,6 +7,7 @@ import { PantallaDeDesarrolloSocial } from './desarrollosocial/PantallaDeDesarro
 import { PantallaDeEducacion } from './educacion/PantallaDeEducacion'
 import { PantallaDeEjemplo } from './ejemplo/PantallaDeEjemplo'
 import { PantallaDeEspaciosVerdes } from './espaciosverdes/PantallaDeEspaciosVerdes'
+import { PantallaDeEventos } from './eventos/PantallaDeEventos'
 import { PantallaDeMesaDeEntradas } from './mesaentradas/PantallaDeMesaDeEntradas'
 import { PantallaDeMultas } from './multas/PantallaDeMultas'
 import { PantallaDeObras } from './obras/PantallaDeObras'
@@ -48,6 +49,7 @@ export const registroDePantallasDeModulo: Record<string, ComponentType<PropsDePa
   obras: PantallaDeObras,
   arbolado: PantallaDeArbolado,
   espaciosverdes: PantallaDeEspaciosVerdes,
+  eventos: PantallaDeEventos,
   desarrollosocial: PantallaDeDesarrolloSocial,
   turnos: PantallaDeTurnos,
   prensa: PantallaDePrensa,

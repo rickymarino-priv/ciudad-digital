@@ -152,13 +152,19 @@ class ConfiguracionDePersistencia {
     /** Espacios verdes (plazas, parques, paseos) del municipio (R25, ADR 0029). */
     static final String PAQUETE_ESPACIOSVERDES = "ar.com.ciudaddigital.espaciosverdes";
 
+    /** Agenda de eventos culturales, turísticos y deportivos del municipio (R26, ADR 0030). */
+    static final String PAQUETE_EVENTOS = "ar.com.ciudaddigital.eventos";
+
     /**
      * Entidad de Spring Modulith que registra las publicaciones de eventos
-     * (tabla {@code event_publication}). Vive en la base de tenant, no en
-     * la de control: todo evento hoy nace de una acción dentro del portal
-     * de un municipio (ADR 0013 §1).
+     * de dominio (tabla {@code event_publication}) — no confundir con
+     * {@link #PAQUETE_EVENTOS}, el módulo funcional de agenda de eventos
+     * (R26): son dos usos distintos de la palabra "eventos" que coinciden
+     * por casualidad de vocabulario, no de dominio. Vive en la base de
+     * tenant, no en la de control: todo evento de dominio hoy nace de una
+     * acción dentro del portal de un municipio (ADR 0013 §1).
      */
-    static final String PAQUETE_EVENTOS = "org.springframework.modulith.events.jpa";
+    static final String PAQUETE_MODULITH_EVENTOS = "org.springframework.modulith.events.jpa";
 
     /*
      * @EnableJpaRepositories no es repetible, así que cada unidad de
@@ -183,7 +189,7 @@ class ConfiguracionDePersistencia {
                     PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS,
                     PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_ARBOLADO,
                     PAQUETE_DESARROLLOSOCIAL, PAQUETE_TURNOS, PAQUETE_PRENSA, PAQUETE_EDUCACION,
-                    PAQUETE_ESPACIOSVERDES },
+                    PAQUETE_ESPACIOSVERDES, PAQUETE_EVENTOS },
             entityManagerFactoryRef = "tenantEntityManagerFactory",
             transactionManagerRef = "tenantTransactionManager")
     static class RepositoriosDeTenant {
@@ -259,7 +265,8 @@ class ConfiguracionDePersistencia {
                 PAQUETE_MUNICIPIO, PAQUETE_ACCESO, PAQUETE_AUDITORIA, PAQUETE_RECLAMOS, PAQUETE_BOLETIN,
                 PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS,
                 PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_ARBOLADO, PAQUETE_DESARROLLOSOCIAL,
-                PAQUETE_TURNOS, PAQUETE_PRENSA, PAQUETE_EDUCACION, PAQUETE_ESPACIOSVERDES, PAQUETE_EVENTOS);
+                PAQUETE_TURNOS, PAQUETE_PRENSA, PAQUETE_EDUCACION, PAQUETE_ESPACIOSVERDES, PAQUETE_EVENTOS,
+                PAQUETE_MODULITH_EVENTOS);
         emf.setPersistenceUnitName("tenant");
         emf.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         emf.setJpaPropertyMap(propiedadesDeTenant());
