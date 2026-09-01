@@ -61,39 +61,10 @@ diseñe cada fase.
 > `CD-28` quedó como un Epic duplicado de CD-6, creado por error y
 > cerrado sin uso — no lo uses como referencia.
 >
-> Nota: R22 se implementó (rama `CD-31-...`, spec
-> `specs/CD-31-...md`) sin acceso al MCP de Jira desde este worktree —
-> misma limitación conocida que R20/R21. `CD-31` es un placeholder
-> elegido por continuidad numérica (siguiente a CD-30), no confirmado
-> contra Jira; tampoco se confirmó que `CD-7` sea realmente el Epic de
-> Fase 6 en Jira (viene de la tabla original, no reverificado acá). La
-> sesión principal tiene que cargar R22 en Jira y corregir esta fila con
-> los números reales, igual que ya corrigió R20/R21.
->
-> Nota: R23 se planificó (rama `CD-32-...`, spec
-> `specs/CD-32-...md`) sin acceso al MCP de Jira desde este worktree —
-> misma limitación conocida que R20/R21/R22. `CD-32` es un placeholder
-> elegido por continuidad numérica (siguiente a CD-31), no confirmado
-> contra Jira. La sesión principal tiene que cargar R23 en Jira y
-> corregir esta fila con los números reales.
->
-> Nota: R24 se planificó (rama `CD-33-...`, spec
-> `specs/CD-33-...md`) sin acceso al MCP de Jira desde este worktree —
-> misma limitación conocida que R20/R21/R22/R23. `CD-33` es un
-> placeholder elegido por continuidad numérica (siguiente a CD-32), no
-> confirmado contra Jira; tampoco se confirmó que `CD-6` sea realmente el
-> Epic de Fase 5 en Jira (viene de la tabla original, no reverificado
-> acá). La sesión principal tiene que cargar R24 en Jira y corregir esta
-> fila con los números reales.
->
-> Nota: R25 se planificó (rama `CD-34-...`, spec
-> `specs/CD-34-...md`) sin acceso al MCP de Jira desde este worktree —
-> misma limitación conocida que R20/R21/R22/R23/R24. `CD-34` es un
-> placeholder elegido por continuidad numérica (siguiente a CD-33), no
-> confirmado contra Jira; tampoco se reverificó que `CD-5` sea realmente
-> el Epic de Fase 4 en Jira (viene de la tabla original). La sesión
-> principal tiene que cargar R25 en Jira y corregir esta fila con los
-> números reales.
+> Nota: de R22 en adelante, el placeholder de rama/spec (elegido por
+> continuidad numérica, sin acceso al MCP de Jira desde el worktree del
+> tech-lead) coincidió en todos los casos con el número real de ticket
+> confirmado desde la sesión principal — sin corrección necesaria.
 
 La Fase 0 está organizada en **rebanadas verticales demostrables**, según
 la regla del proyecto (ver [CLAUDE.md](../../CLAUDE.md)): cada rebanada
