@@ -155,6 +155,9 @@ class ConfiguracionDePersistencia {
     /** Agenda de eventos culturales, turísticos y deportivos del municipio (R26, ADR 0030). */
     static final String PAQUETE_EVENTOS = "ar.com.ciudaddigital.eventos";
 
+    /** Alertas y recursos de Defensa Civil del municipio (R27, ADR 0031). */
+    static final String PAQUETE_DEFENSACIVIL = "ar.com.ciudaddigital.defensacivil";
+
     /**
      * Entidad de Spring Modulith que registra las publicaciones de eventos
      * de dominio (tabla {@code event_publication}) — no confundir con
@@ -189,7 +192,7 @@ class ConfiguracionDePersistencia {
                     PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS,
                     PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_ARBOLADO,
                     PAQUETE_DESARROLLOSOCIAL, PAQUETE_TURNOS, PAQUETE_PRENSA, PAQUETE_EDUCACION,
-                    PAQUETE_ESPACIOSVERDES, PAQUETE_EVENTOS },
+                    PAQUETE_ESPACIOSVERDES, PAQUETE_EVENTOS, PAQUETE_DEFENSACIVIL },
             entityManagerFactoryRef = "tenantEntityManagerFactory",
             transactionManagerRef = "tenantTransactionManager")
     static class RepositoriosDeTenant {
@@ -266,7 +269,7 @@ class ConfiguracionDePersistencia {
                 PAQUETE_CEMENTERIO, PAQUETE_MESAENTRADAS, PAQUETE_TRANSPARENCIA, PAQUETE_TASAS,
                 PAQUETE_PROVEEDORES, PAQUETE_MULTAS, PAQUETE_OBRAS, PAQUETE_ARBOLADO, PAQUETE_DESARROLLOSOCIAL,
                 PAQUETE_TURNOS, PAQUETE_PRENSA, PAQUETE_EDUCACION, PAQUETE_ESPACIOSVERDES, PAQUETE_EVENTOS,
-                PAQUETE_MODULITH_EVENTOS);
+                PAQUETE_DEFENSACIVIL, PAQUETE_MODULITH_EVENTOS);
         emf.setPersistenceUnitName("tenant");
         emf.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         emf.setJpaPropertyMap(propiedadesDeTenant());

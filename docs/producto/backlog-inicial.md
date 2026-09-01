@@ -43,7 +43,15 @@ diseñe cada fase.
 | CD-32 (placeholder, sin confirmar) | R23 · El municipio publica una gacetilla de prensa y cualquiera la encuentra (parent: CD-7, sin confirmar) |
 | CD-33 (placeholder, sin confirmar) | R24 · El municipio registra una institución educativa municipal y cualquiera ve su estado (parent: CD-6, sin confirmar) |
 | CD-34 (placeholder, sin confirmar) | R25 · El municipio registra un espacio verde y cualquiera ve su estado (parent: CD-5, sin confirmar) |
+| CD-36 | Epic Sin fase fija — módulos sin prioridad de roadmap |
+| CD-37 | R27 · El municipio publica una alerta de Defensa Civil y registra sus recursos de emergencia, y cualquiera los consulta (parent: CD-36) |
 
+> Nota: falta en esta tabla la fila de R26 (rama `CD-35-...`, spec
+> `specs/CD-35-agenda-eventos-cultura-turismo-deporte.md`), que quedó sin
+> agregar en la rebanada que la implementó — no es un error de esta
+> rebanada, se señala acá para que quien la corrija sepa que también falta
+> esa fila, no solo la de R27.
+>
 > Nota: R20 y R21 se implementaron con las ramas `CD-28-...`/`CD-29-...`
 > como placeholders, elegidos antes de saber el número real de ticket
 > (el MCP de Jira estuvo bloqueado por un CAPTCHA al momento de
@@ -1807,6 +1815,88 @@ integración con `turnos` para un evento puntual reservable, notificación
 al vecino de eventos nuevos o cancelados, y Auditoría interna/Control de
 gestión y el framework de reportes/BI que necesitaría (sin candidata
 nueva de Fase 6 disponible después de esta rebanada).
+
+## Epic: Sin fase fija — módulos sin prioridad de roadmap (CD-36)
+
+El [roadmap](roadmap-fases.md#sin-fase-fija) deja Seguridad/Defensa Civil y
+Bromatología sin fase asignada, "dependiendo de la prioridad que les dé el
+municipio piloto que se consiga". Sin piloto real todavía, este Epic agrupa
+las rebanadas de esos módulos a medida que se eligen por descarte razonado,
+con el mismo criterio que ya usaron las rebanadas que abrieron cada fase.
+
+### R27 · El municipio publica una alerta de Defensa Civil y registra sus recursos de emergencia, y cualquiera los consulta
+
+**Demo**: un agente municipal (con sesión y `defensacivil.gestionar`)
+publica una alerta: tipo "Meteorológica", nivel "Naranja", título "Tormenta
+fuerte con caída de granizo", con su descripción y recomendaciones. Queda
+"Vigente". El mismo agente registra un recurso: tipo "Refugio", nombre
+"Polideportivo Municipal", dirección "Av. Libertador 1200", capacidad 200.
+Queda "Activo". Un vecino, sin sesión, entra al portal público y ve la
+alerta vigente junto con el listado de recursos, filtra por nivel y por
+tipo, y encuentra ambos. Pasada la tormenta, el agente finaliza la alerta;
+al volver a consultar, el vecino la ve como "Finalizada" (no desaparece del
+listado). Ni la alerta ni el recurso aparecen en el portal de otro
+municipio.
+
+Primera rebanada del Epic Sin fase fija (CD-36). Elegida por descarte
+razonado sobre Bromatología (necesita normativa de inspección específica
+por municipio/provincia sin piloto real que la valide) y, dentro de
+Seguridad/Defensa Civil, sobre "cámaras, monitoreo de emergencias,
+protocolos" (integración de hardware/CCTV sin ningún patrón de integración
+externa en el proyecto) y sobre un canal de reporte ciudadano de riesgo
+(solapa con `reclamos`, R6) — ver
+[ADR 0031](../arquitectura/decisiones/0031-defensa-civil-alertas-publicas-y-recursos-primera-rebanada-sin-fase-fija.md),
+Contexto, que además explica por qué el módulo se llama `defensacivil` y no
+`seguridad`. Sin dato de persona identificable en ninguna de las dos
+entidades: ni una alerta pública ni un recurso institucional (refugio,
+punto de encuentro) revelan la ubicación de una persona vulnerable, a
+diferencia del riesgo que motivó la minimización de datos de Desarrollo
+Social (ADR 0025) — ver ADR 0031, "Minimización de datos".
+
+Incluye:
+- Módulo `defensacivil`, contratable, con dos entidades independientes sin
+  relación de esquema entre sí: `AlertaDeDefensaCivilEntity` y
+  `RecursoDeDefensaCivilEntity`. Un único permiso
+  `defensacivil.gestionar` (administrador y agente) cubre alta y cambio de
+  estado de ambas — no hay diferencia real de sensibilidad que justifique
+  separarlo (ADR 0031 §3).
+- Alerta: `tipo` (Meteorológica, Inundación, Ola de calor, Incendio, Otra),
+  `nivel` (Amarillo/Naranja/Rojo, la convención real del Servicio
+  Meteorológico Nacional, no una escala inventada), `titulo`,
+  `descripcion`, `recomendaciones`, `zonaAfectada` (texto libre, sin GIS).
+  Nace `VIGENTE`; única transición posible `VIGENTE → FINALIZADA`
+  (`PATCH /api/defensacivil/alertas/{id}/estado`, terminal, sin retorno).
+- Recurso: `tipo` (Refugio, Punto de encuentro, Centro de acopio, Otro),
+  `nombre`, `direccion` (texto libre, sin GIS), `capacidad` (opcional, sin
+  relación con ninguna persona), `telefonoContacto` (opcional). Nace
+  `ACTIVO`; transición libre en ambos sentidos con
+  `PATCH /api/defensacivil/recursos/{id}/estado`.
+- Alta protegida (`POST`, sesión + `defensacivil.gestionar`) y lectura
+  pública sin sesión en ambas entidades (`GET
+  /api/defensacivil/alertas`/`GET /api/defensacivil/recursos`, filtros
+  combinables por tipo/nivel/estado/texto), sin ninguna ruta de escritura
+  pública.
+- **Test de aislamiento** (obligatorio, dos casos): una alerta y un recurso
+  registrados en un municipio no son visibles ni actualizables desde otro.
+- Pantalla pública única con dos secciones (Alertas y Recursos, cada una
+  con su propio `<h2>`), accesible, sin cuenta para consultar, con las
+  acciones de publicar/registrar y de cambiar de estado visibles solo con
+  el permiso, mismas convenciones de foco y anuncios
+  (`role="status"`/`role="alert"`) que el resto del portal. Las alertas
+  vigentes se distinguen visualmente sin depender solo del color (el texto
+  del estado sigue presente en la celda).
+
+Especificación completa en
+[spec CD-37](../../specs/CD-37-defensa-civil.md).
+
+Queda fuera de R27, explícitamente diferido (ver ADR 0031, Pendiente de
+definir): notificación push/SMS de una alerta nueva o finalizada,
+geolocalización estructurada de `zonaAfectada`/`direccion`, integración con
+fuentes externas de alerta temprana (SMN u otro organismo), reapertura de
+una alerta finalizada, motivo de la finalización/inactivación, y cualquier
+integración con cámaras, sensores o hardware de monitoreo. Bromatología
+queda disponible como próxima candidata del mismo Epic sin fase fija
+(CD-36).
 
 ## Epic: Fase 7 — Inteligencia artificial
 

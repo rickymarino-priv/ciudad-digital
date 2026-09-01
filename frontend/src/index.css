@@ -393,6 +393,17 @@ body {
   border-bottom: none;
 }
 
+/*
+ * Fila destacada (por ejemplo, una alerta de Defensa Civil vigente): el
+ * color es un refuerzo visual, nunca la única señal — la celda de estado
+ * siempre repite el texto ("Vigente"/"Finalizada", WCAG 1.4.1), esto solo
+ * remarca la fila para quien sí distingue color.
+ */
+.tabla__fila--destacada {
+  background-color: color-mix(in srgb, var(--color-primario) 8%, var(--color-superficie));
+  border-left: 4px solid var(--color-primario);
+}
+
 /* Lista dentro de una celda de tabla (por ejemplo, el historial de
    movimientos de un expediente de Mesa de Entradas): mantiene la
    semántica de lista para lectores de pantalla, sin el respiro de una
