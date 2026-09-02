@@ -47,6 +47,7 @@ diseñe cada fase.
 | CD-37 | R27 · El municipio publica una alerta de Defensa Civil y registra sus recursos de emergencia, y cualquiera los consulta (parent: CD-36) |
 | CD-38 (placeholder, sin confirmar) | R28 · El municipio registra un comercio bromatológico y sus inspecciones, y cualquiera consulta el estado del padrón (parent: CD-36, sin confirmar) |
 | CD-39 (placeholder, sin confirmar) | R29 · Framework de reportes/BI — motor mínimo y primer tablero real, con reclamos y mesaentradas como consumidores (parent: CD-1, sin confirmar) |
+| CD-40 | R30 · Auditoría interna / Control de gestión — el tablero de reportes suma multas, bromatología y turnos (parent: CD-7) |
 
 > Nota: falta en esta tabla la fila de R26 (rama `CD-35-...`, spec
 > `specs/CD-35-agenda-eventos-cultura-turismo-deporte.md`), que quedó sin
@@ -1848,6 +1849,60 @@ integración con `turnos` para un evento puntual reservable, notificación
 al vecino de eventos nuevos o cancelados, y Auditoría interna/Control de
 gestión y el framework de reportes/BI que necesitaría (sin candidata
 nueva de Fase 6 disponible después de esta rebanada).
+
+### R30 · Auditoría interna / Control de gestión — el tablero de reportes suma multas, bromatología y turnos
+
+**Demo**: un administrador del municipio entra a Administración → Reportes
+y ve, además de "Reclamos por estado" y las dos tablas de Mesa de
+Entradas (R29), tres módulos nuevos con datos reales de ese municipio:
+"Multas por estado", "Comercios bromatológicos por estado sanitario" +
+"Inspecciones por resultado", y "Turnos reservados por actividad". Si el
+municipio no tiene contratado alguno de esos módulos, esa fuente no
+aparece, igual que ya pasa con `reclamos`/`mesaentradas`. Los números de
+un municipio nunca aparecen en el tablero de otro.
+
+Cuarta rebanada de Fase 6 — Áreas de imagen y control de gestión, y
+cierre de la última candidata pendiente del catálogo funcional para esta
+fase: "Auditoría interna / Control de gestión", descartada por descarte
+razonado tres veces seguidas (R22/ADR 0026, R23/ADR 0027, R26/ADR 0030)
+hasta que R29 (framework de reportes/BI) desbloqueó el mecanismo que le
+faltaba. Decisión de arquitectura completa en
+[ADR 0034](../arquitectura/decisiones/0034-auditoria-interna-control-de-gestion-ampliacion-del-tablero-de-reportes.md),
+spec técnica en
+[spec CD-40](../../specs/CD-40-auditoria-interna-control-de-gestion.md).
+No se crea un módulo `controldegestion` nuevo ni se toca el registro de
+auditoría de eventos de R5 (ADR 0013, sigue con un único tipo de acción
+auditada real): se resuelve ampliando `reportes` (R29) con tres
+consumidores nuevos de su SPI, mismo mecanismo exacto, sin negociarlo de
+nuevo.
+
+Incluye:
+- Tres implementaciones nuevas de `reportes.FuenteDeMetricas`:
+  `multas.internal.FuenteDeMetricasDeMultas` ("Multas por estado"),
+  `bromatologia.internal.FuenteDeMetricasDeBromatologia` ("Comercios
+  bromatológicos por estado sanitario" e "Inspecciones por resultado") y
+  `turnos.internal.FuenteDeMetricasDeTurnos` ("Turnos reservados por
+  actividad", agregando sobre un join propio del módulo entre
+  `TurnoEntity`/`FranjaHorariaEntity`/`ActividadEntity`). El tablero pasa
+  de dos a cinco módulos representados.
+- **Test de aislamiento**: los conteos nuevos de un municipio son
+  exactamente los suyos, nunca los de otro; y el filtro por entitlement
+  real (ya probado en R29 con `reclamos`) se verifica también para un
+  módulo nuevo (`multas`).
+- Sin migración Flyway (no hay tabla ni permiso nuevo: `reportes.ver` ya
+  existe) y sin ningún cambio de frontend: `PanelDeReportes` (R29) ya es
+  genérico y renderiza cualquier cantidad de fuentes/series que devuelva
+  el backend, así que las tres nuevas aparecen automáticamente con la
+  misma tabla accesible ya construida en R29.
+
+Explícitamente fuera de alcance de esta rebanada (ver ADR 0034, "Pendiente
+de definir"): visibilidad de indicadores por rol (`reportes.ver` sigue
+reservado a `administrador`), filtros o series temporales en `auditoria`
+o en `reportes`, indicadores derivados de fecha/vencimiento, alertas o
+umbrales de cumplimiento, y sumar `FuenteDeMetricas` a los módulos
+restantes con estado propio (`desarrollosocial`, `obras`, `arbolado`,
+`espaciosverdes`, `educacion`, `eventos`, `defensacivil`, `cementerio`,
+`tasas`, `proveedores`, etc. — quedan disponibles sin tocar `reportes`).
 
 ## Epic: Sin fase fija — módulos sin prioridad de roadmap (CD-36)
 
