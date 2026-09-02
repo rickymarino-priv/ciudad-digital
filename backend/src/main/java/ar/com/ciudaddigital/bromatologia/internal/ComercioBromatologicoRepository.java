@@ -31,4 +31,19 @@ interface ComercioBromatologicoRepository extends JpaRepository<ComercioBromatol
             @Param("rubro") RubroBromatologico rubro,
             @Param("estado") EstadoBromatologico estado,
             @Param("patron") String patron);
+
+    /**
+     * Conteo agregado por estado sanitario, para
+     * {@code FuenteDeMetricasDeBromatologia} (ADR 0034 §3). Un estado sin
+     * ningún comercio no aparece en el resultado: no se rellena con cero.
+     */
+    @Query("select c.estado as etiqueta, count(c) as cantidad from ComercioBromatologicoEntity c "
+            + "group by c.estado order by c.estado asc")
+    List<ConteoPorEtiqueta> contarPorEstado();
+
+    interface ConteoPorEtiqueta {
+        String getEtiqueta();
+
+        long getCantidad();
+    }
 }

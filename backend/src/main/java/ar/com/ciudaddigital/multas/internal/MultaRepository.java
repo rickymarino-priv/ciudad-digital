@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 /**
  * Multas del municipio del request en curso.
@@ -21,4 +22,19 @@ interface MultaRepository extends JpaRepository<MultaEntity, Long> {
     List<MultaEntity> findAllByOrderByNotificadaEnDesc();
 
     Optional<MultaEntity> findByReferenciaExternaPago(String referenciaExternaPago);
+
+    /**
+     * Conteo agregado por estado, para {@code FuenteDeMetricasDeMultas}
+     * (ADR 0034 §3). Un estado sin ninguna multa no aparece en el
+     * resultado: no se rellena con cero.
+     */
+    @Query("select m.estado as etiqueta, count(m) as cantidad from MultaEntity m "
+            + "group by m.estado order by m.estado asc")
+    List<ConteoPorEtiqueta> contarPorEstado();
+
+    interface ConteoPorEtiqueta {
+        String getEtiqueta();
+
+        long getCantidad();
+    }
 }

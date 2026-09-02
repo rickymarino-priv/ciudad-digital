@@ -44,6 +44,8 @@ class ReportesTest extends SoporteDeIntegracion {
     private static final String C = "lujan";
     private static final String D = "pilar";
     private static final String E = "escobar";
+    private static final String F = "canuelas";
+    private static final String G = "brandsen";
 
     @BeforeEach
     void municipiosDePrueba() throws Exception {
@@ -52,6 +54,8 @@ class ReportesTest extends SoporteDeIntegracion {
         asegurarMunicipio(C, "Luján", "#2E7D32");
         asegurarMunicipio(D, "Pilar", "#6A1B9A");
         asegurarMunicipio(E, "Escobar", "#EF6C00");
+        asegurarMunicipio(F, "Cañuelas", "#4527A0");
+        asegurarMunicipio(G, "Brandsen", "#00695C");
     }
 
     @Test
@@ -192,6 +196,230 @@ class ReportesTest extends SoporteDeIntegracion {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    @DisplayName("aislamiento real (ADR 0034): multas, bromatología y turnos devuelven exactamente los "
+            + "conteos propios de cada municipio, nunca los del otro")
+    void aislamientoRealDeLasNuevasFuentesEntreTenants() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(F, plataforma, "multas", "bromatologia", "turnos");
+        fijarModulos(G, plataforma, "multas", "bromatologia", "turnos");
+
+        MockHttpSession administradorDeF = iniciarSesionDeAdministrador(F);
+        MockHttpSession administradorDeG = iniciarSesionDeAdministrador(G);
+
+        // F: 3 multas -> 2 NOTIFICADA, 1 CONFIRMADA (descargo rechazado).
+        Long multaConDescargo = labrarMulta(F, administradorDeF, "AAA111");
+        labrarMulta(F, administradorDeF, "AAA222");
+        labrarMulta(F, administradorDeF, "AAA333");
+        presentarDescargoDeMulta(F, multaConDescargo);
+        resolverDescargoDeMulta(F, administradorDeF, multaConDescargo, true);
+
+        // F: 2 comercios -> uno queda HABILITADO, el otro pasa a OBSERVADO
+        // por una inspección; 1 inspección con resultado OBSERVADO.
+        registrarComercio(F, administradorDeF, "Verdulería de Cañuelas", "VERDULERIA");
+        Long comercioObservadoDeF = registrarComercio(F, administradorDeF, "Carnicería de Cañuelas", "CARNICERIA");
+        registrarInspeccion(F, administradorDeF, comercioObservadoDeF, "OBSERVADO");
+
+        // F: 1 actividad con 2 turnos reservados.
+        Long actividadDeF = publicarActividad(F, administradorDeF, "Actividad de Cañuelas");
+        Long franjaDeF = crearFranja(F, administradorDeF, actividadDeF, 3);
+        reservarTurno(F, franjaDeF, "10", "vecino1f@canuelas.gob.ar");
+        reservarTurno(F, franjaDeF, "20", "vecino2f@canuelas.gob.ar");
+
+        // G: 1 multa NOTIFICADA (sin descargo).
+        labrarMulta(G, administradorDeG, "BBB111");
+
+        // G: 1 comercio que pasa a CLAUSURADO por una inspección con ese
+        // resultado -- ningún OBSERVADO ni HABILITADO acá, a diferencia de F.
+        Long comercioDeG = registrarComercio(G, administradorDeG, "Restaurante de Brandsen", "RESTAURANTE");
+        registrarInspeccion(G, administradorDeG, comercioDeG, "CLAUSURADO");
+
+        // G: 1 actividad con 1 turno reservado, nombre distinto al de F.
+        Long actividadDeG = publicarActividad(G, administradorDeG, "Actividad de Brandsen");
+        Long franjaDeG = crearFranja(G, administradorDeG, actividadDeG, 1);
+        reservarTurno(G, franjaDeG, "30", "vecino1g@brandsen.gob.ar");
+
+        String tableroDeF = mvc.perform(get(portalDe(F, "/api/reportes/tablero")).session(administradorDeF))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        Map<String, Object> multasDeF = fuenteDe(tableroDeF, "multas");
+        Map<String, Object> multasPorEstadoDeF = serieDe(multasDeF, "Multas por estado");
+        assertEquals(2L, cantidadDe(multasPorEstadoDeF, "NOTIFICADA"));
+        assertEquals(1L, cantidadDe(multasPorEstadoDeF, "CONFIRMADA"));
+        assertNull(cantidadDe(multasPorEstadoDeF, "PAGADA"));
+        assertNull(cantidadDe(multasPorEstadoDeF, "ANULADA"));
+
+        Map<String, Object> bromatologiaDeF = fuenteDe(tableroDeF, "bromatologia");
+        Map<String, Object> comerciosPorEstadoDeF =
+                serieDe(bromatologiaDeF, "Comercios bromatológicos por estado sanitario");
+        assertEquals(1L, cantidadDe(comerciosPorEstadoDeF, "HABILITADO"));
+        assertEquals(1L, cantidadDe(comerciosPorEstadoDeF, "OBSERVADO"));
+        assertNull(cantidadDe(comerciosPorEstadoDeF, "CLAUSURADO"));
+        Map<String, Object> inspeccionesPorResultadoDeF = serieDe(bromatologiaDeF, "Inspecciones por resultado");
+        assertEquals(1L, cantidadDe(inspeccionesPorResultadoDeF, "OBSERVADO"));
+        assertNull(cantidadDe(inspeccionesPorResultadoDeF, "CLAUSURADO"));
+
+        Map<String, Object> turnosDeF = fuenteDe(tableroDeF, "turnos");
+        Map<String, Object> turnosPorActividadDeF = serieDe(turnosDeF, "Turnos reservados por actividad");
+        assertEquals(2L, cantidadDe(turnosPorActividadDeF, "Actividad de Cañuelas"));
+        assertNull(cantidadDe(turnosPorActividadDeF, "Actividad de Brandsen"));
+
+        String tableroDeG = mvc.perform(get(portalDe(G, "/api/reportes/tablero")).session(administradorDeG))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        Map<String, Object> multasDeG = fuenteDe(tableroDeG, "multas");
+        Map<String, Object> multasPorEstadoDeG = serieDe(multasDeG, "Multas por estado");
+        assertEquals(1L, cantidadDe(multasPorEstadoDeG, "NOTIFICADA"));
+        assertNull(cantidadDe(multasPorEstadoDeG, "CONFIRMADA"));
+
+        Map<String, Object> bromatologiaDeG = fuenteDe(tableroDeG, "bromatologia");
+        Map<String, Object> comerciosPorEstadoDeG =
+                serieDe(bromatologiaDeG, "Comercios bromatológicos por estado sanitario");
+        assertEquals(1L, cantidadDe(comerciosPorEstadoDeG, "CLAUSURADO"));
+        assertNull(cantidadDe(comerciosPorEstadoDeG, "HABILITADO"));
+        assertNull(cantidadDe(comerciosPorEstadoDeG, "OBSERVADO"));
+        Map<String, Object> inspeccionesPorResultadoDeG = serieDe(bromatologiaDeG, "Inspecciones por resultado");
+        assertEquals(1L, cantidadDe(inspeccionesPorResultadoDeG, "CLAUSURADO"));
+        assertNull(cantidadDe(inspeccionesPorResultadoDeG, "OBSERVADO"));
+
+        Map<String, Object> turnosDeG = fuenteDe(tableroDeG, "turnos");
+        Map<String, Object> turnosPorActividadDeG = serieDe(turnosDeG, "Turnos reservados por actividad");
+        assertEquals(1L, cantidadDe(turnosPorActividadDeG, "Actividad de Brandsen"));
+        assertNull(cantidadDe(turnosPorActividadDeG, "Actividad de Cañuelas"));
+    }
+
+    @Test
+    @DisplayName("filtro por entitlement real (ADR 0034): el mismo mecanismo general de R29 también aplica a "
+            + "un módulo nuevo (multas): contratado aparece con datos, sin contratar desaparece sin borrarlos")
+    void filtroPorEntitlementRealDeMultas() throws Exception {
+        MockHttpSession plataforma = iniciarSesionDePlataforma();
+        fijarModulos(C, plataforma, "multas");
+        MockHttpSession administrador = iniciarSesionDeAdministrador(C);
+
+        labrarMulta(C, administrador, "CCC111");
+
+        String conModuloContratado = mvc.perform(get(portalDe(C, "/api/reportes/tablero")).session(administrador))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertEquals(1, ((List<?>) JsonPath.read(conModuloContratado, "$[?(@.moduloCodigo == 'multas')]")).size());
+
+        // Se quita multas de los módulos contratados, sin tocar la multa ya labrada.
+        fijarModulos(C, plataforma);
+
+        String sinModuloContratado = mvc.perform(get(portalDe(C, "/api/reportes/tablero")).session(administrador))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertTrue(((List<?>) JsonPath.read(sinModuloContratado, "$[?(@.moduloCodigo == 'multas')]"))
+                .isEmpty());
+    }
+
+    private Long labrarMulta(String subdominio, MockHttpSession sesionAdmin, String patente) throws Exception {
+        MvcResult resultado = mvc.perform(post(portalDe(subdominio, "/api/multas"))
+                .session(sesionAdmin)
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"patente":"%s","dni":null,"descripcionInfraccion":"Infracción de prueba","monto":10000}"""
+                        .formatted(patente)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        return ((Number) JsonPath.read(resultado.getResponse().getContentAsString(), "$.id")).longValue();
+    }
+
+    private void presentarDescargoDeMulta(String subdominio, Long id) throws Exception {
+        mvc.perform(post(portalDe(subdominio, "/api/multas/" + id + "/descargo"))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"texto":"Discuto la infracción.","contacto":null}"""))
+                .andExpect(status().isOk());
+    }
+
+    private void resolverDescargoDeMulta(String subdominio, MockHttpSession sesionAdmin, Long id, boolean confirmar)
+            throws Exception {
+
+        mvc.perform(post(portalDe(subdominio, "/api/multas/" + id + "/resolver-descargo"))
+                .session(sesionAdmin)
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"comentario\":\"Resolución de prueba.\",\"confirmar\":" + confirmar + "}"))
+                .andExpect(status().isOk());
+    }
+
+    private Long registrarComercio(String subdominio, MockHttpSession sesionAdmin, String nombre, String rubro)
+            throws Exception {
+
+        MvcResult resultado = mvc.perform(post(portalDe(subdominio, "/api/bromatologia/comercios"))
+                .session(sesionAdmin)
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"nombre":"%s","rubro":"%s","direccion":"Dirección de prueba",
+                         "fechaHabilitacion":"2026-01-01","fechaVencimientoHabilitacion":"2027-01-01"}"""
+                        .formatted(nombre, rubro)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        return ((Number) JsonPath.read(resultado.getResponse().getContentAsString(), "$.id")).longValue();
+    }
+
+    private void registrarInspeccion(String subdominio, MockHttpSession sesionAdmin, Long comercioId, String resultado)
+            throws Exception {
+
+        mvc.perform(post(portalDe(subdominio, "/api/bromatologia/comercios/" + comercioId + "/inspecciones"))
+                .session(sesionAdmin)
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"fecha":"2026-02-01","resultado":"%s","observaciones":null}""".formatted(resultado)))
+                .andExpect(status().isCreated());
+    }
+
+    private Long publicarActividad(String subdominio, MockHttpSession sesionAdmin, String nombre) throws Exception {
+        MvcResult resultado = mvc.perform(post(portalDe(subdominio, "/api/turnos/actividades"))
+                .session(sesionAdmin)
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"nombre":"%s","tipo":"DEPORTE","descripcion":null,"ubicacion":"Sede municipal"}"""
+                        .formatted(nombre)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        return ((Number) JsonPath.read(resultado.getResponse().getContentAsString(), "$.id")).longValue();
+    }
+
+    private Long crearFranja(String subdominio, MockHttpSession sesionAdmin, Long actividadId, int cupoTotal)
+            throws Exception {
+
+        MvcResult resultado = mvc.perform(post(portalDe(subdominio, "/api/turnos/actividades/" + actividadId + "/franjas"))
+                .session(sesionAdmin)
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"fecha":"2026-09-05","horaInicio":"10:00","horaFin":"11:00","cupoTotal":%d}"""
+                        .formatted(cupoTotal)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        return ((Number) JsonPath.read(resultado.getResponse().getContentAsString(), "$.id")).longValue();
+    }
+
+    private void reservarTurno(String subdominio, Long franjaId, String dniSolicitante, String contacto)
+            throws Exception {
+
+        mvc.perform(post(portalDe(subdominio, "/api/turnos/reservas"))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"franjaId":%d,"nombreSolicitante":"Vecino de prueba","dniSolicitante":"%s","contacto":"%s"}"""
+                        .formatted(franjaId, dniSolicitante, contacto)))
+                .andExpect(status().isCreated());
     }
 
     @SuppressWarnings("unchecked")
