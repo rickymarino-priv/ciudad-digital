@@ -46,6 +46,7 @@ diseñe cada fase.
 | CD-36 | Epic Sin fase fija — módulos sin prioridad de roadmap |
 | CD-37 | R27 · El municipio publica una alerta de Defensa Civil y registra sus recursos de emergencia, y cualquiera los consulta (parent: CD-36) |
 | CD-38 (placeholder, sin confirmar) | R28 · El municipio registra un comercio bromatológico y sus inspecciones, y cualquiera consulta el estado del padrón (parent: CD-36, sin confirmar) |
+| CD-39 (placeholder, sin confirmar) | R29 · Framework de reportes/BI — motor mínimo y primer tablero real, con reclamos y mesaentradas como consumidores (parent: CD-1, sin confirmar) |
 
 > Nota: falta en esta tabla la fila de R26 (rama `CD-35-...`, spec
 > `specs/CD-35-agenda-eventos-cultura-turismo-deporte.md`), que quedó sin
@@ -173,6 +174,66 @@ reportes/BI** salen de la Fase 0: no tienen consumidor todavía y no se
 pueden construir como rebanada demostrable. Construirlos sin un módulo
 real que los use es diseñar a ciegas. Se construyen en Fase 1, junto con
 el primer módulo funcional que efectivamente los necesita.
+
+El motor de expediente/workflow siguió sin consumidor hasta ahora
+(`reclamos`/`mesaentradas` tienen ciclo de estado fijo, no configurable,
+[ADR 0014](../arquitectura/decisiones/0014-reclamos-ciudadanos-alta-publica-anonima-y-estado-propio.md)
+§3); el framework de reportes/BI se retomó recién en R29 (ver abajo),
+cuando el producto ya tenía 15+ módulos funcionales con datos reales para
+agregar — ver el descarte razonado de "Auditoría interna / Control de
+gestión" en
+[ADR 0026](../arquitectura/decisiones/0026-turnos-actividades-municipales-reserva-con-cupo-primera-rebanada-de-fase-6.md),
+[ADR 0027](../arquitectura/decisiones/0027-prensa-y-comunicacion-gacetillas-segunda-rebanada-de-fase-6.md)
+y
+[ADR 0030](../arquitectura/decisiones/0030-agenda-de-eventos-cultura-turismo-y-deporte-tercera-rebanada-de-fase-6.md),
+que señalaron tres veces seguidas que ese framework era el bloqueante real.
+
+### R29 · El municipio ve un tablero con la cantidad de reclamos y de expedientes de Mesa de Entradas agrupados por estado
+
+**Demo**: un administrador del municipio entra a Administración y ve la
+sección "Reportes": una tabla "Reclamos por estado" y dos tablas más de
+Mesa de Entradas ("Expedientes por tipo de trámite", "Expedientes por
+estado"), con los conteos reales de ese municipio. Si el municipio no
+tiene contratado `reclamos`, esa tabla no aparece; si tampoco tiene
+`mesaentradas`, la sección avisa que no hay indicadores disponibles. Los
+números de un municipio nunca aparecen en el tablero de otro.
+
+Decisión de arquitectura completa en
+[ADR 0033](../arquitectura/decisiones/0033-framework-de-reportes-bi-motor-de-metricas-agregadas-y-primer-tablero.md),
+spec técnica en [spec CD-39](../../specs/CD-39-framework-de-reportes-bi.md).
+
+Incluye:
+- Módulo backend `reportes` (canon base, sin `DescriptorDeModulo`, no
+  gateado por entitlement): interfaz pública `FuenteDeMetricas` (SPI) que
+  un módulo funcional implementa para aportar indicadores agregados
+  —consultas `group by` directas sobre su propia tabla, sin eventos de
+  dominio nuevos—, recolectados por `reportes` sin que `reportes` conozca
+  ni importe ningún módulo funcional (inversión de dependencia, mismo
+  patrón que `entitlement.DescriptorDeModulo`,
+  [ADR 0012](../arquitectura/decisiones/0012-declaracion-de-modulos-y-gating-por-ruta.md)
+  §2).
+- Primeros dos consumidores reales de la SPI: `reclamos` ("Reclamos por
+  estado") y `mesaentradas` ("Expedientes por tipo de trámite", "por
+  estado").
+- `GET /api/reportes/tablero`, protegido por el permiso nuevo
+  `reportes.ver` (reservado a `administrador`) y filtrado por lo que el
+  tenant tiene efectivamente contratado (`entitlement.ModulosDelTenant`):
+  un módulo no contratado no aparece en el tablero aunque tenga datos
+  cargados.
+- Pantalla `PanelDeReportes` dentro de `PanelDeAdministracion` (no es un
+  módulo contratable, no entra en `frontend/src/modulos/registro.ts`).
+- **Test de aislamiento**: los conteos del tablero de un municipio son
+  exactamente los suyos, nunca se mezclan con los de otro, y el filtro por
+  entitlement es real (deja de mostrar una fuente cuando se descontrata el
+  módulo, aunque los datos sigan en la tabla).
+
+Explícitamente fuera de alcance de esta rebanada: Auditoría interna /
+Control de gestión como módulo completo (sigue siendo una rebanada
+futura, ahora desbloqueada), eventos de dominio nuevos, más módulos
+consumidores de la SPI (`multas`, `turnos`, etc. quedan disponibles para
+sumarse después sin tocar `reportes`), gráficos/visualización, filtros por
+fecha y series temporales, caché/materialización, exportación a
+PDF/Excel.
 
 ---
 
