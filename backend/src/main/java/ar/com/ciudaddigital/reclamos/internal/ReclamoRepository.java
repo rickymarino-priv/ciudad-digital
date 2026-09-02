@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 /**
  * Reclamos del municipio del request en curso.
@@ -20,4 +21,19 @@ interface ReclamoRepository extends JpaRepository<ReclamoEntity, Long> {
     List<ReclamoEntity> findAllByOrderByCreadoEnDesc();
 
     Optional<ReclamoEntity> findByTokenHash(String tokenHash);
+
+    /**
+     * Conteo agregado por estado, para {@code FuenteDeMetricasDeReclamos}
+     * (ADR 0033 §3). Un estado sin ningún reclamo no aparece en el
+     * resultado: no se rellena con cero.
+     */
+    @Query("select r.estado as etiqueta, count(r) as cantidad from ReclamoEntity r "
+            + "group by r.estado order by r.estado asc")
+    List<ConteoPorEtiqueta> contarPorEstado();
+
+    interface ConteoPorEtiqueta {
+        String getEtiqueta();
+
+        long getCantidad();
+    }
 }

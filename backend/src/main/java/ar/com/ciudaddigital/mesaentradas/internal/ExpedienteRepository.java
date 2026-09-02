@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 /**
  * Expedientes del municipio del request en curso.
@@ -20,4 +21,26 @@ interface ExpedienteRepository extends JpaRepository<ExpedienteEntity, Long> {
     List<ExpedienteEntity> findAllByOrderByCreadoEnDesc();
 
     Optional<ExpedienteEntity> findByTokenHash(String tokenHash);
+
+    /**
+     * Conteo agregado por tipo de trámite, para
+     * {@code FuenteDeMetricasDeMesaEntradas} (ADR 0033 §3). Un tipo sin
+     * ningún expediente no aparece en el resultado: no se rellena con cero.
+     */
+    @Query("select e.tipo as etiqueta, count(e) as cantidad from ExpedienteEntity e "
+            + "group by e.tipo order by e.tipo asc")
+    List<ConteoPorEtiqueta> contarPorTipo();
+
+    /**
+     * Conteo agregado por estado, mismo criterio que {@link #contarPorTipo()}.
+     */
+    @Query("select e.estado as etiqueta, count(e) as cantidad from ExpedienteEntity e "
+            + "group by e.estado order by e.estado asc")
+    List<ConteoPorEtiqueta> contarPorEstado();
+
+    interface ConteoPorEtiqueta {
+        String getEtiqueta();
+
+        long getCantidad();
+    }
 }
